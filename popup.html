@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    width: 420px;
+    padding: 0;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'SF Pro Display', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    color: #1e293b;
+  }
+  
+  .header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 0 0 16px 16px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 20px rgba(15, 23, 42, 0.15);
+  }
+  
+  .header h1 {
+    margin: 0 0 16px 0;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .header h1::before {
+    content: "📊";
+    font-size: 24px;
+  }
+
+  .header-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .auth-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 24px;
+    font-size: 12px;
+    font-weight: 600;
+    flex: 1;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .auth-indicator.authenticated {
+    background: rgba(34, 197, 94, 0.15);
+    color: #dcfce7;
+    border-color: rgba(34, 197, 94, 0.3);
+  }
+
+  .auth-indicator.unauthenticated {
+    background: rgba(239, 68, 68, 0.15);
+    color: #fecaca;
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+
+  .settings-toggle {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    margin: 0;
+    padding: 0;
+    color: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+  }
+
+  .settings-toggle:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: rotate(90deg) scale(1.05);
+    color: white;
+  }
+
+  .settings-toggle.active {
+    background: rgba(59, 130, 246, 0.8);
+    color: white;
+    border-color: rgba(59, 130, 246, 0.6);
+    transform: rotate(180deg) scale(1.05);
+  }
+
+  .settings-panel {
+    margin: 0 20px 20px 20px;
+    padding: 16px;
+    background: white;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    display: none;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  }
+
+  .settings-panel.show {
+    display: block;
+    animation: slideDown 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .settings-grid button {
+    margin-bottom: 0;
+    font-size: 11px;
+    padding: 8px 10px;
+    font-weight: 500;
+  }
+
+  .settings-panel .btn-warning {
+    width: 100%;
+  }
+
+  .sheet-management {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .sheet-management h4 {
+    margin: 0 0 12px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .current-sheet {
+    background: #f8fafc;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: #6b7280;
+  }
+
+  .current-sheet strong {
+    color: #1e293b;
+    font-weight: 600;
+  }
+
+  .content {
+    padding: 0 20px 20px 20px;
+  }
+  
+  .auth-section, .setup-section, .contact-section {
+    margin-bottom: 20px;
+  }
+  
+  .form-group {
+    margin-bottom: 20px;
+  }
+  
+  label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #374151;
+    font-size: 13px;
+    letter-spacing: 0.025em;
+  }
+  
+  input[type="text"], textarea, select {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    background: white;
+  }
+
+  input[type="text"]:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  
+  select {
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 12px center;
+    background-repeat: no-repeat;
+    background-size: 16px;
+    padding-right: 40px;
+  }
+  
+  textarea {
+    resize: vertical;
+    min-height: 60px;
+    font-family: inherit;
+  }
+  
+  button {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    width: 100%;
+    margin-bottom: 12px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+  }
+  
+  button:hover {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+
+  button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+  }
+  
+  button:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .btn-secondary {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    box-shadow: 0 2px 4px rgba(107, 114, 128, 0.2);
+  }
+  
+  .btn-secondary:hover {
+    background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+    box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
+  }
+  
+  .btn-test {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    margin-top: 12px;
+    box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+  }
+  
+  .btn-test:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  }
+  
+  .btn-auth {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    font-size: 16px;
+    padding: 16px 24px;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+  }
+  
+  .btn-auth:hover {
+    background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+    box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
+  }
+
+  .btn-cache {
+    background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
+    font-size: 11px;
+    padding: 8px 12px;
+    box-shadow: 0 1px 3px rgba(8, 145, 178, 0.2);
+  }
+
+  .btn-cache:hover {
+    background: linear-gradient(135deg, #0e7490 0%, #155e75 100%);
+    box-shadow: 0 2px 8px rgba(8, 145, 178, 0.3);
+  }
+
+  .btn-warning {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: #1f2937;
+    font-size: 12px;
+    padding: 10px 16px;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(245, 158, 11, 0.2);
+  }
+
+  .btn-warning:hover {
+    background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+  }
+  
+  .contact-info {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border: 2px solid #f1f5f9;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  }
+
+  .contact-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  
+  .contact-name {
+    font-weight: 700;
+    font-size: 18px;
+    color: #1e293b;
+    letter-spacing: -0.025em;
+    flex: 1;
+  }
+
+  .closed-checkbox-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .closed-checkbox-container label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .closed-checkbox-container input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: #dc2626;
+  }
+  
+  .contact-url {
+    color: #3b82f6;
+    text-decoration: none;
+    font-size: 12px;
+    word-break: break-all;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+
+  .contact-url:hover {
+    color: #2563eb;
+    text-decoration: underline;
+  }
+  
+  .contact-status {
+    margin-top: 12px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    display: inline-block;
+    letter-spacing: 0.025em;
+  }
+  
+  .status-new {
+    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+    color: #166534;
+    border: 1px solid #86efac;
+  }
+  
+  .status-existing {
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    color: #1e40af;
+    border: 1px solid #93c5fd;
+  }
+
+  .status-closed {
+    background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+    color: #991b1b;
+    border: 1px solid #f87171;
+  }
+  
+  .sequence-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sequence-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 2px solid #f1f5f9;
+  border-radius: 6px;
+  background: white;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sequence-item:hover {
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+}
+
+.sequence-item input[type="checkbox"] {
+  margin-top: 1px;
+  width: 14px;
+  height: 14px;
+  accent-color: #3b82f6;
+}
+
+.sequence-label {
+  flex: 1;
+  font-weight: 600;
+  text-transform: capitalize;
+  color: #374151;
+  font-size: 12px;
+}
+
+.sequence-timestamp {
+  font-size: 10px;
+  color: #6b7280;
+  margin-top: 2px;
+  font-weight: 500;
+}
+  
+  .message {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    font-weight: 500;
+    border-left: 4px solid;
+  }
+  
+  .message.success {
+    background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+    color: #166534;
+    border-left-color: #22c55e;
+  }
+  
+  .message.error {
+    background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+    color: #991b1b;
+    border-left-color: #ef4444;
+  }
+  
+  .loading {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6b7280;
+    font-weight: 500;
+  }
+
+  .loading::after {
+    content: "";
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e5e7eb;
+    border-radius: 50%;
+    border-top-color: #3b82f6;
+    animation: spin 1s ease-in-out infinite;
+    margin-left: 8px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  .hidden {
+    display: none;
+  }
+
+  .setup-help {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border: 1px solid #93c5fd;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .setup-help strong {
+    color: #1e40af;
+    font-weight: 700;
+  }
+
+  .auth-help {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 1px solid #f59e0b;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .auth-help strong {
+    color: #92400e;
+    font-weight: 700;
+  }
+
+  /* Subtle animations for better UX */
+  .form-group {
+    animation: fadeInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Improved scrollbar for webkit browsers */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #f1f5f9;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>LinkedIn Outreach Tracker</h1>
+    
+    <!-- Header Controls -->
+    <div class="header-controls">
+      <div id="auth-indicator" class="auth-indicator unauthenticated">
+        <span id="auth-icon">❌</span>
+        <span id="auth-text">Not authenticated</span>
+      </div>
+      <button id="settings-toggle" class="settings-toggle" title="Settings">
+        ⚙️
+      </button>
+    </div>
+
+    <!-- Collapsible Settings Panel -->
+    <div id="settings-panel" class="settings-panel">
+      <!-- Sheet Management -->
+      <div class="sheet-management">
+        <h4>📊 Sheet Management</h4>
+        <div class="current-sheet">
+          <strong>Current:</strong> <span id="current-sheet-name">No sheet selected</span>
+        </div>
+        <select id="sheet-selector">
+          <option value="">Select sheet...</option>
+        </select>
+      </div>
+
+      <div class="settings-grid">
+        <button id="clear-cache-btn" class="btn-cache">🗑️ Clear Cache</button>
+        <button id="refresh-connection-btn" class="btn-cache">🔄 Refresh</button>
+        <button id="refresh-btn" class="btn-cache">📊 Reload Contact</button>
+        <button id="reset-btn" class="btn-cache">🔄 Reset Setup</button>
+      </div>
+      <button id="force-reauth-btn" class="btn-warning">🔑 Re-authenticate</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div id="loading" class="loading hidden">
+      Loading
+    </div>
+
+    <div id="message" class="message hidden"></div>
+
+    <!-- Authentication Section -->
+    <div id="auth-section" class="auth-section">
+      <div class="auth-help">
+        <strong>🔐 Authentication Required</strong><br>
+        This extension needs access to your Google Sheets to track your LinkedIn outreach.
+      </div>
+      <button id="auth-btn" class="btn-auth">🔑 Sign in with Google</button>
+    </div>
+
+    <!-- Setup Section -->
+    <div id="setup-section" class="setup-section hidden">
+      <div class="setup-help">
+        <strong>📋 Setup Instructions:</strong><br>
+        1. Create a new Google Sheet or use an existing one<br>
+        2. Copy the full URL from your Google Sheets browser tab<br>
+        3. Paste the URL below and click "Test API" to verify connection
+      </div>
+      
+      <div class="form-group">
+        <label for="spreadsheet-id">Google Sheets URL:</label>
+        <input type="text" id="spreadsheet-id" placeholder="Paste your Google Sheets URL here">
+        <button id="test-api-btn" class="btn-test">✅ Test API Connection</button>
+      </div>
+      
+      <div class="form-group">
+        <label for="sheet-name">Sheet Name (optional):</label>
+        <input type="text" id="sheet-name" placeholder="e.g., Q1 2024 Outreach">
+      </div>
+      
+      <button id="setup-btn">🚀 Setup Spreadsheet</button>
+    </div>
+
+    <!-- Contact Section -->
+    <div id="contact-section" class="contact-section hidden">
+      <!-- Contact Info -->
+      <div id="contact-info" class="contact-info">
+        <div class="contact-header">
+          <div id="contact-name" class="contact-name"></div>
+          <div class="closed-checkbox-container">
+            <input type="checkbox" id="closed-checkbox">
+            <label for="closed-checkbox">Close</label>
+          </div>
+        </div>
+        <a id="contact-url" class="contact-url" href="#" target="_blank"></a>
+        <div id="contact-status" class="contact-status"></div>
+      </div>
+
+      <!-- Cohort Management -->
+      <div class="form-group">
+        <label for="cohort-input">📅 Current Cohort:</label>
+        <input type="text" id="cohort-input" placeholder="e.g., Q1 2024 Tech Leads">
+      </div>
+
+      <!-- Outreach Sequence -->
+      <div class="form-group">
+        <label>🎯 Outreach Sequence:</label>
+        <div class="sequence-grid" id="sequence-grid">
+          <!-- Sequence items will be populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- Type Management -->
+      <div class="form-group">
+        <label for="type-select">🏷️ Contact Type:</label>
+        <select id="type-select">
+          <option value="">Select type...</option>
+        </select>
+      </div>
+
+      <!-- Notes Management -->
+      <div class="form-group">
+        <label for="notes-input">📝 Notes:</label>
+        <textarea id="notes-input" placeholder="Add any notes about this contact..." rows="3"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load the main script as a module -->
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
