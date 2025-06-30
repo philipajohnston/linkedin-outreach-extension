@@ -2,7 +2,7 @@
 import { CONFIG } from "./config.js"
 import { Utils } from "./utils.js"
 import { ProfileExtractor } from "./profile-extractor.js"
-import { chrome } from "chrome"
+import { chrome } from "chrome" // Declare the chrome variable
 
 export class ContactManager {
   constructor(sheetsAPI, uiManager) {
@@ -118,27 +118,27 @@ export class ContactManager {
     try {
       if (!this.currentContact) return
       const rowIndex = this.currentContact.rowIndex
-      const updates = []
-      if (company) {
-        updates.push({
-          range: `Sheet1!${Utils.getColumnLetter(CONFIG.COLUMN_MAPPING.COMPANY)}${rowIndex}`,
-          value: company,
-        })
+
+      // Update company if provided
+      if (company && company !== this.currentContact.company) {
+        const companyColumn = Utils.getColumnLetter(CONFIG.COLUMN_MAPPING.COMPANY)
+        const companyRange = `Sheet1!${companyColumn}${rowIndex}`
+        console.log("Updating company with range:", companyRange)
+        await this.sheetsAPI.updateCell(spreadsheetId, companyRange, company)
         this.currentContact.company = company
       }
-      if (role) {
-        updates.push({
-          range: `Sheet1!${Utils.getColumnLetter(CONFIG.COLUMN_MAPPING.ROLE_TITLE)}${rowIndex}`,
-          value: role,
-        })
+
+      // Update role if provided
+      if (role && role !== this.currentContact.role_title) {
+        const roleColumn = Utils.getColumnLetter(CONFIG.COLUMN_MAPPING.ROLE_TITLE)
+        const roleRange = `Sheet1!${roleColumn}${rowIndex}`
+        console.log("Updating role with range:", roleRange)
+        await this.sheetsAPI.updateCell(spreadsheetId, roleRange, role)
         this.currentContact.role_title = role
-      }
-      // This part can be optimized to a single batch update call if needed
-      for (const update of updates) {
-        await this.sheetsAPI.updateCell(spreadsheetId, update.range, update.value)
       }
     } catch (error) {
       console.error("Update contact job info error:", error)
+      // Don't throw - this is not critical for the main flow
     }
   }
 
@@ -147,6 +147,12 @@ export class ContactManager {
       const stepKey = step.toUpperCase()
       const stepIndex = CONFIG.COLUMN_MAPPING[stepKey]
       const timestampIndex = CONFIG.COLUMN_MAPPING[`${stepKey}_TIMESTAMP`]
+
+      if (stepIndex === undefined || timestampIndex === undefined) {
+        console.error(`Invalid step: ${step}. Available steps:`, CONFIG.SEQUENCE_STEPS)
+        return false
+      }
+
       const timestamp = completed ? new Date().toISOString() : ""
       const stepValue = completed ? "TRUE" : ""
 
@@ -185,9 +191,6 @@ export class ContactManager {
         newNotes = currentNotes.replace(/^Closure Reason: .*\n---\n/, "")
       }
 
-      // Batch update status and notes in a single call for efficiency
-      // Note: This requires columns to be adjacent or handled by multiple ranges in a batchUpdate call.
-      // For simplicity, we do two separate calls, which is fine for this use case.
       await this.sheetsAPI.updateCell(spreadsheetId, statusRange, newStatus)
       await this.sheetsAPI.updateCell(spreadsheetId, notesRange, newNotes)
 
@@ -205,7 +208,8 @@ export class ContactManager {
   async saveConnectionNote(spreadsheetId, noteText) {
     if (!this.currentContact) return
     try {
-      const range = `Sheet1!${Utils.getColumnLetter(CONFIG.COLUMN_MAPPING.CONNECTION_NOTE)}${this.currentContact.rowIndex}`
+      const noteColumn = Utils.getColumnLetter(CONFIG.COLUMN_MAPPING.CONNECTION_NOTE)
+      const range = `Sheet1!${noteColumn}${this.currentContact.rowIndex}`
       await this.sheetsAPI.updateCell(spreadsheetId, range, noteText)
       this.currentContact.connection_note = noteText
       console.log("Successfully saved connection note to sheet.")
@@ -216,7 +220,6 @@ export class ContactManager {
     }
   }
 
-  // Type management can be simplified or refactored further if needed
   async loadAvailableTypes(spreadsheetId) {
     try {
       const stored = await chrome.storage.local.get([`types_${spreadsheetId}`])
@@ -233,5 +236,26 @@ export class ContactManager {
     } catch (error) {
       console.error("Save available types error:", error)
     }
+  }
+
+  populateTypeDropdown() {
+    const select = Utils.safeGetElement("type-select")
+    if (!select) return
+
+    select.innerHTML = '<option value="">Select type...</option>'
+
+    this.availableTypes.forEach((type) => {
+      const option = document.createElement("option")
+      option.value = type
+      option.textContent = type
+      select.appendChild(option)
+    })
+
+    const addNewOption = document.createElement("option")
+    addNewOption.value = "add-new"
+    addNewOption.textContent = "➕ Add new type..."
+    addNewOption.style.fontStyle = "italic"
+    addNewOption.style.color = "#666"
+    select.appendChild(addNewOption)
   }
 }

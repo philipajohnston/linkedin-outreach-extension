@@ -126,18 +126,27 @@ class LinkedInOutreachTracker {
 
   populateContactForm(contact) {
     if (!contact) return
-    Utils.safeGetElement("cohort-input").value = contact.cohort
-    Utils.safeGetElement("notes-input").value = contact.notes
+
+    const cohortInput = Utils.safeGetElement("cohort-input")
+    const notesInput = Utils.safeGetElement("notes-input")
+    const typeSelect = Utils.safeGetElement("type-select")
+
+    if (cohortInput) cohortInput.value = contact.cohort || ""
+    if (notesInput) notesInput.value = contact.notes || ""
+
+    // Populate type dropdown and set value
     this.contactManager.populateTypeDropdown()
-    Utils.safeGetElement("type-select").value = contact.type
+    if (typeSelect) typeSelect.value = contact.type || ""
   }
 
   async handleSheetSelection(event) {
     const value = event.target.value
     if (value === "add-new") {
       this.uiManager.showSection("setup")
-      Utils.safeGetElement("spreadsheet-id").value = ""
-      Utils.safeGetElement("sheet-name").value = ""
+      const spreadsheetInput = Utils.safeGetElement("spreadsheet-id")
+      const sheetNameInput = Utils.safeGetElement("sheet-name")
+      if (spreadsheetInput) spreadsheetInput.value = ""
+      if (sheetNameInput) sheetNameInput.value = ""
       event.target.value = ""
     } else if (value && value !== this.spreadsheetId) {
       this.uiManager.showMessage("Switching sheets...", "success", 0)
@@ -173,7 +182,7 @@ class LinkedInOutreachTracker {
   async setupSpreadsheet() {
     const spreadsheetInput = Utils.safeGetElement("spreadsheet-id")
     const sheetNameInput = Utils.safeGetElement("sheet-name")
-    const inputValue = spreadsheetInput.value.trim()
+    const inputValue = spreadsheetInput?.value?.trim()
     if (!inputValue) return this.uiManager.showMessage("Please enter a Google Sheets URL or ID.", "error")
 
     try {
@@ -185,7 +194,7 @@ class LinkedInOutreachTracker {
       await this.sheetsAPI.testConnection(spreadsheetId)
       await this.sheetsAPI.createHeaders(spreadsheetId)
 
-      const customName = sheetNameInput.value.trim() || `Sheet ${new Date().toLocaleDateString()}`
+      const customName = sheetNameInput?.value?.trim() || `Sheet ${new Date().toLocaleDateString()}`
       await this.sheetManager.saveSheet(spreadsheetId, customName)
       await chrome.storage.local.set({ spreadsheetId })
       await this.contactManager.loadAvailableTypes(spreadsheetId)
@@ -203,7 +212,7 @@ class LinkedInOutreachTracker {
 
   async testApiConnection() {
     const spreadsheetInput = Utils.safeGetElement("spreadsheet-id")
-    const inputValue = spreadsheetInput.value.trim()
+    const inputValue = spreadsheetInput?.value?.trim()
     if (!inputValue) return this.uiManager.showMessage("Please enter a spreadsheet URL first.", "error")
     const spreadsheetId = Utils.extractSpreadsheetId(inputValue)
     if (!spreadsheetId) return this.uiManager.showMessage("Invalid Google Sheets URL or ID.", "error")
@@ -229,9 +238,9 @@ class LinkedInOutreachTracker {
         await this.saveField("TYPE", "type-select")
         this.uiManager.showMessage(`✅ Type "${newType}" added!`, "success")
       } else {
-        event.target.value = this.contactManager.currentContact.type
+        event.target.value = this.contactManager.currentContact?.type || ""
       }
-    } else if (value !== this.contactManager.currentContact.type) {
+    } else if (value !== this.contactManager.currentContact?.type) {
       await this.saveField("TYPE", "type-select")
     }
   }
@@ -269,9 +278,16 @@ class LinkedInOutreachTracker {
     if (this.contactManager.currentContact[contactKey] === value) return // No change
 
     try {
-      const range = `Sheet1!${Utils.getColumnLetter(CONFIG.COLUMN_MAPPING[configKey])}${this.contactManager.currentContact.rowIndex}`
+      const columnIndex = CONFIG.COLUMN_MAPPING[configKey]
+      if (columnIndex === undefined) {
+        console.error(`Invalid config key: ${configKey}`)
+        return
+      }
+
+      const range = `Sheet1!${Utils.getColumnLetter(columnIndex)}${this.contactManager.currentContact.rowIndex}`
       await this.sheetsAPI.updateCell(this.spreadsheetId, range, value)
       this.contactManager.currentContact[contactKey] = value
+
       if (configKey === "COHORT") {
         this.currentCohort = value
         await chrome.storage.local.set({ currentCohort: value })
