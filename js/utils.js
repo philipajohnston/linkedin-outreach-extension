@@ -12,29 +12,22 @@ export class Utils {
   }
 
   static extractSpreadsheetId(input) {
-    console.log("Extracting spreadsheet ID from:", input)
-
     if (CONFIG.SPREADSHEET_ID_REGEX.test(input)) {
-      console.log("Input is already a valid spreadsheet ID")
       return input
     }
 
     for (const pattern of CONFIG.URL_PATTERNS) {
       const match = input.match(pattern)
-      if (match && match[1]) {
-        console.log("Extracted ID using pattern:", pattern, "Result:", match[1])
+      if (match?.[1]) {
         return match[1]
       }
     }
-
-    console.log("Could not extract spreadsheet ID from input")
     return null
   }
 
   static isLinkedInProfile(url) {
-    if (!url) return false
     return (
-      url.includes("linkedin.com/in/") &&
+      url?.includes("linkedin.com/in/") &&
       !url.includes("/recent-activity") &&
       !url.includes("/detail/") &&
       !url.includes("/overlay/")
@@ -55,5 +48,16 @@ export class Utils {
       console.warn(`Element with id '${id}' not found`)
     }
     return element
+  }
+
+  static formatTimestamp(timestamp) {
+    if (!timestamp) return ""
+    const date = new Date(timestamp)
+    return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  }
+
+  static concatenateNotes(notes, closureReason) {
+    const parts = [notes, closureReason].filter((part) => part?.trim())
+    return parts.length > 0 ? parts.join(" | ") : ""
   }
 }
