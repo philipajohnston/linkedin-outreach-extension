@@ -332,7 +332,7 @@
 
   .contact-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 12px;
     margin-bottom: 6px;
   }
@@ -343,6 +343,13 @@
     color: #1e293b;
     letter-spacing: -0.025em;
     flex: 1;
+  }
+
+  .status-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
   }
 
   .closed-checkbox-container {
@@ -381,31 +388,25 @@
   }
   
   .contact-status {
-    margin-top: 12px;
-    padding: 6px 12px;
+    padding: 4px 10px;
     border-radius: 20px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    display: inline-block;
     letter-spacing: 0.025em;
+    border: 1px solid;
+    text-align: center;
   }
   
-  .status-new {
+  .status-open {
     background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
     color: #166534;
-    border: 1px solid #86efac;
+    border-color: #86efac;
   }
   
-  .status-existing {
-    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-    color: #1e40af;
-    border: 1px solid #93c5fd;
-  }
-
   .status-closed {
     background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
     color: #991b1b;
-    border: 1px solid #f87171;
+    border-color: #f87171;
   }
   
   .sequence-grid {
@@ -674,13 +675,15 @@
       <div id="contact-info" class="contact-info">
         <div class="contact-header">
           <div id="contact-name" class="contact-name"></div>
-          <div class="closed-checkbox-container">
-            <input type="checkbox" id="closed-checkbox">
-            <label for="closed-checkbox">Close</label>
+          <div class="status-controls">
+            <div id="contact-status" class="contact-status"></div>
+            <div class="closed-checkbox-container">
+              <input type="checkbox" id="closed-checkbox">
+              <label for="closed-checkbox">Mark as Closed</label>
+            </div>
           </div>
         </div>
         <a id="contact-url" class="contact-url" href="#" target="_blank"></a>
-        <div id="contact-status" class="contact-status"></div>
       </div>
 
       <!-- Cohort Management -->
@@ -699,7 +702,7 @@
 
       <!-- Connection Note Display -->
       <div id="connection-note-display" class="form-group connection-note-display hidden">
-        <label>💬 Connection Note:</label>
+        <strong>💬 Connection Note:</strong>
         <p>No note captured.</p>
       </div>
 

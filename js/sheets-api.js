@@ -1,6 +1,6 @@
 // Google Sheets API interactions
 import { CONFIG } from "./config.js"
-import { Utils } from "./utils.js" // Declare the Utils variable
+import { Utils } from "./utils.js"
 
 export class SheetsAPI {
   constructor(authManager) {
@@ -9,18 +9,12 @@ export class SheetsAPI {
 
   async testConnection(spreadsheetId) {
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`
-    console.log("Testing API with URL:", url)
-
     try {
       const response = await this.authManager.makeAuthenticatedRequest(url)
-      const result = await response.json()
-      console.log("API test response:", response.status, result)
-
       if (!response.ok) {
-        const errorMessage = result.error?.message || "Unknown error"
-        throw new Error(`API Error (${response.status}): ${errorMessage}`)
+        const result = await response.json()
+        throw new Error(`API Error (${response.status}): ${result.error?.message || "Unknown error"}`)
       }
-
       return true
     } catch (error) {
       console.error("API test failed:", error)
@@ -38,16 +32,11 @@ export class SheetsAPI {
         method: "PUT",
         body: JSON.stringify({ values: [CONFIG.SPREADSHEET_HEADERS] }),
       })
-
-      const result = await response.json()
-      console.log("Headers creation response:", response.status, result)
-
       if (!response.ok) {
-        const errorMessage = result.error?.message || "Unknown error"
-        throw new Error(`API Error (${response.status}): ${errorMessage}`)
+        const result = await response.json()
+        throw new Error(`API Error (${response.status}): ${result.error?.message || "Unknown error"}`)
       }
-
-      return result
+      return await response.json()
     } catch (error) {
       console.error("Headers creation failed:", error)
       throw error
@@ -55,15 +44,18 @@ export class SheetsAPI {
   }
 
   async findExistingContact(spreadsheetId, profileUrl) {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A:V`
+    const lastColumnLetter = Utils.getColumnLetter(CONFIG.SPREADSHEET_HEADERS.length - 1)
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A:${lastColumnLetter}`
     const response = await this.authManager.makeAuthenticatedRequest(url)
     const data = await response.json()
 
-    if (!data.values) return null
+    if (!data.values || data.values.length < 2) return null // No data beyond headers
+
+    const profileUrlIndex = CONFIG.COLUMN_MAPPING.LINKEDIN_PROFILE_URL
 
     for (let i = 1; i < data.values.length; i++) {
       const row = data.values[i]
-      if (row[1] === profileUrl) {
+      if (row[profileUrlIndex] === profileUrl) {
         return { rowIndex: i + 1, data: row }
       }
     }
@@ -71,51 +63,33 @@ export class SheetsAPI {
   }
 
   async createNewContact(spreadsheetId, profileData, cohort) {
-    const timestamp = new Date().toISOString()
-    const rowData = [
-      profileData.name, // A: Name
-      profileData.profileUrl, // B: LinkedIn Profile URL
-      profileData.company, // C: Company
-      profileData.role, // D: Role/Title
-      cohort, // E: Cohort
-      "", // F: Warmup
-      "", // G: Warmup Timestamp
-      "", // H: Connect
-      "", // I: Connect Timestamp
-      "", // J: Chatting
-      "", // K: Chatting Timestamp
-      "", // L: CTA
-      "", // M: CTA Timestamp
-      "", // N: Interest
-      "", // O: Interest Timestamp
-      "", // P: Converted
-      "", // Q: Converted Timestamp
-      timestamp, // R: Date Added
-      "", // S: Notes
-      "", // T: Type
-      "", // U: Closed
-      "", // V: Closure Reason
-    ]
+    const rowData = new Array(CONFIG.SPREADSHEET_HEADERS.length).fill("")
+
+    // Use COLUMN_MAPPING to place data in the correct columns
+    rowData[CONFIG.COLUMN_MAPPING.STATUS] = "OPEN"
+    rowData[CONFIG.COLUMN_MAPPING.NAME] = profileData.name
+    rowData[CONFIG.COLUMN_MAPPING.LINKEDIN_PROFILE_URL] = profileData.profileUrl
+    rowData[CONFIG.COLUMN_MAPPING.COMPANY] = profileData.company
+    rowData[CONFIG.COLUMN_MAPPING.ROLE_TITLE] = profileData.role
+    rowData[CONFIG.COLUMN_MAPPING.COHORT] = cohort
+    rowData[CONFIG.COLUMN_MAPPING.DATE_ADDED] = new Date().toISOString()
 
     console.log("Creating new contact with data:", rowData)
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A:V:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`
+    const lastColumnLetter = Utils.getColumnLetter(CONFIG.SPREADSHEET_HEADERS.length - 1)
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A:A:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`
 
     try {
       const response = await this.authManager.makeAuthenticatedRequest(url, {
         method: "POST",
         body: JSON.stringify({ values: [rowData] }),
       })
-
       const result = await response.json()
-      console.log("New contact creation response:", response.status, result)
-
       if (!response.ok) {
-        const errorMessage = result.error?.message || "Unknown error"
-        throw new Error(`API Error (${response.status}): ${errorMessage}`)
+        throw new Error(`API Error (${response.status}): ${result.error?.message || "Unknown error"}`)
       }
-
-      const rowIndex = result.updates?.updatedRange?.match(/\d+$/)?.[0] || 2
-      return { rowIndex: Number.parseInt(rowIndex), data: rowData }
+      const updatedRange = result.updates?.updatedRange
+      const rowIndex = updatedRange ? Number.parseInt(updatedRange.match(/(\d+)$/)[0], 10) : 2
+      return { rowIndex, data: rowData }
     } catch (error) {
       console.error("New contact creation failed:", error)
       throw error
@@ -124,41 +98,27 @@ export class SheetsAPI {
 
   async updateCell(spreadsheetId, range, value) {
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=RAW`
-
     const response = await this.authManager.makeAuthenticatedRequest(url, {
       method: "PUT",
       body: JSON.stringify({ values: [[value]] }),
     })
-
     if (!response.ok) {
       const result = await response.json()
-      const errorMessage = result.error?.message || "Unknown error"
-      throw new Error(`Failed to update ${range}: ${errorMessage}`)
+      throw new Error(`Failed to update ${range}: ${result.error?.message || "Unknown error"}`)
     }
-
     return response
   }
 
   async updateRange(spreadsheetId, range, values) {
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?valueInputOption=RAW`
-
     const response = await this.authManager.makeAuthenticatedRequest(url, {
       method: "PUT",
       body: JSON.stringify({ values: [values] }),
     })
-
     if (!response.ok) {
       const result = await response.json()
-      const errorMessage = result.error?.message || "Unknown error"
-      throw new Error(`Failed to update ${range}: ${errorMessage}`)
+      throw new Error(`Failed to update ${range}: ${result.error?.message || "Unknown error"}`)
     }
-
     return response
-  }
-
-  async updateConnectionNote(spreadsheetId, rowIndex, note) {
-    const range = `Sheet1!J${rowIndex}` // Column J is the new "Connection Note" column
-    console.log(`Updating connection note at ${range}`)
-    return this.updateCell(spreadsheetId, range, note)
   }
 }
