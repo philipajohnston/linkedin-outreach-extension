@@ -180,16 +180,17 @@ export class ContactManager {
       let currentNotes = this.currentContact.notes || ""
       let newNotes = currentNotes
 
-      if (isClosed) {
-        // Prepend closure reason to notes
-        const reasonText = `Closure Reason: ${reason || "Not specified"}`
-        // Remove old reason if it exists
-        currentNotes = currentNotes.replace(/^Closure Reason:  "|| ")
-        newNotes = `${reasonText}"|| "${currentNotes}`
-      } else {
-        // Remove closure reason from notes
-        newNotes = currentNotes.replace(/^Closure Reason: "|| ")
-      }
+javascript
+if (isClosed) {
+  // Prepend closure reason to notes
+  const reasonText = `Closure Reason: ${reason || "Not specified"}`;
+  // Remove old reason if it exists
+  currentNotes = currentNotes.replace(/^Closure Reason: ||*\n?/, "");
+  newNotes = `${reasonText}\n${currentNotes}`;
+} else {
+  // Remove closure reason from notes
+  newNotes = currentNotes.replace(/^Closure Reason: ||*\n?/, "");
+}
 
       await this.sheetsAPI.updateCell(spreadsheetId, statusRange, newStatus)
       await this.sheetsAPI.updateCell(spreadsheetId, notesRange, newNotes)
