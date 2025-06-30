@@ -1,7 +1,8 @@
 // Contact data management
-import { CONFIG } from "./config.js"
+import { CONFIG as APP_CONFIG } from "./config.js"
 import { Utils } from "./utils.js"
 import { ProfileExtractor } from "./profile-extractor.js"
+//import { chrome } from "chrome" // Declared the chrome variable
 
 export class ContactManager {
   constructor(sheetsAPI, uiManager) {
@@ -106,6 +107,7 @@ export class ContactManager {
     if (closedCheckbox) closedCheckbox.checked = false
 
     this.renderSequenceGrid({})
+    this.displayConnectionNote("")
   }
 
   displayExistingContact(profileData, existingContact) {
@@ -136,7 +138,7 @@ export class ContactManager {
     this.uiManager.updateContactNameDisplay(profileData.name, isClosed)
 
     const sequenceData = {}
-    CONFIG.SEQUENCE_STEPS.forEach((step, index) => {
+    APP_CONFIG.SEQUENCE_STEPS.forEach((step, index) => {
       const stepIndex = 5 + index * 2
       const timestampIndex = stepIndex + 1
       sequenceData[step] = {
@@ -146,6 +148,9 @@ export class ContactManager {
     })
 
     this.renderSequenceGrid(sequenceData)
+
+    const connectionNote = existingContact.data[9] || ""
+    this.displayConnectionNote(connectionNote)
   }
 
   renderSequenceGrid(sequenceData) {
@@ -154,7 +159,7 @@ export class ContactManager {
 
     grid.innerHTML = ""
 
-    CONFIG.SEQUENCE_STEPS.forEach((step) => {
+    APP_CONFIG.SEQUENCE_STEPS.forEach((step) => {
       const item = document.createElement("div")
       item.className = "sequence-item"
 
@@ -190,7 +195,7 @@ export class ContactManager {
 
   async updateSequenceStep(spreadsheetId, step, completed) {
     try {
-      const stepIndex = 5 + CONFIG.SEQUENCE_STEPS.indexOf(step) * 2
+      const stepIndex = 5 + APP_CONFIG.SEQUENCE_STEPS.indexOf(step) * 2
       const timestampIndex = stepIndex + 1
       const timestamp = completed ? new Date().toISOString() : ""
       const stepValue = completed ? "TRUE" : ""
@@ -276,5 +281,34 @@ export class ContactManager {
     addNewOption.style.fontStyle = "italic"
     addNewOption.style.color = "#666"
     select.appendChild(addNewOption)
+  }
+
+  async saveConnectionNote(spreadsheetId, noteText) {
+    if (!this.currentContact) {
+      console.log("Cannot save connection note, no current contact.")
+      return
+    }
+    try {
+      await this.sheetsAPI.updateConnectionNote(spreadsheetId, this.currentContact.rowIndex, noteText)
+      // Update local data
+      this.currentContact.data[9] = noteText // Index 9 is the new "Connection Note"
+      console.log("Successfully saved connection note to sheet.")
+      this.displayConnectionNote(noteText) // Update UI
+    } catch (error) {
+      console.error("Failed to save connection note:", error)
+      throw error
+    }
+  }
+
+  displayConnectionNote(noteText) {
+    const noteDisplay = Utils.safeGetElement("connection-note-display")
+    if (noteDisplay) {
+      if (noteText) {
+        noteDisplay.querySelector("p").textContent = noteText
+        noteDisplay.classList.remove("hidden")
+      } else {
+        noteDisplay.classList.add("hidden")
+      }
+    }
   }
 }

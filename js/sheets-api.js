@@ -1,5 +1,6 @@
 // Google Sheets API interactions
 import { CONFIG } from "./config.js"
+import { Utils } from "./utils.js" // Declare the Utils variable
 
 export class SheetsAPI {
   constructor(authManager) {
@@ -28,7 +29,8 @@ export class SheetsAPI {
   }
 
   async createHeaders(spreadsheetId) {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A1:V1?valueInputOption=RAW`
+    const lastColumnLetter = Utils.getColumnLetter(CONFIG.SPREADSHEET_HEADERS.length - 1)
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Sheet1!A1:${lastColumnLetter}1?valueInputOption=RAW`
     console.log("Creating headers with URL:", url)
 
     try {
@@ -152,5 +154,11 @@ export class SheetsAPI {
     }
 
     return response
+  }
+
+  async updateConnectionNote(spreadsheetId, rowIndex, note) {
+    const range = `Sheet1!J${rowIndex}` // Column J is the new "Connection Note" column
+    console.log(`Updating connection note at ${range}`)
+    return this.updateCell(spreadsheetId, range, note)
   }
 }

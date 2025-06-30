@@ -5,7 +5,7 @@ import { AuthManager } from "./js/auth-manager.js"
 import { UIManager } from "./js/ui-manager.js"
 import { SheetsAPI } from "./js/sheets-api.js"
 import { ContactManager } from "./js/contact-manager.js"
-import { SheetManager } from "./js/sheet-manager.js"
+import { SheetManager } from "./js/sheet-manager.js
 
 class LinkedInOutreachTracker {
   constructor() {
@@ -305,11 +305,46 @@ class LinkedInOutreachTracker {
 
   async loadContactData() {
     try {
+      // Get current tab and construct profile URL
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      const profileUrl = tab.url.split("?")[0].split("#")[0]
+      console.log("Current profile URL:", profileUrl)
+
+      // Check for pending connection note BEFORE loading contact data
+      const noteKey = `connectionNote_${profileUrl}`
+      console.log("Looking for connection note with key:", noteKey)
+
+      // Get all storage keys to debug
+      const allStorage = await chrome.storage.local.get(null)
+      console.log("All storage keys:", Object.keys(allStorage))
+      console.log(
+        "Storage keys matching connectionNote:",
+        Object.keys(allStorage).filter((key) => key.startsWith("connectionNote_")),
+      )
+
+      const stored = await chrome.storage.local.get(noteKey)
+      const pendingNote = stored[noteKey] || null
+
+      if (pendingNote) {
+        console.log("Found pending connection note:", pendingNote)
+      } else {
+        console.log("No pending connection note found for key:", noteKey)
+      }
+
+      // Load contact data
       const contact = await this.contactManager.loadContactData(this.spreadsheetId, this.currentCohort)
 
-      // Populate form after contact is loaded
-      this.populateContactForm()
+      // Now that contact is loaded, save the pending note if it exists
+      if (pendingNote && this.contactManager.currentContact) {
+        console.log("Attempting to save connection note to spreadsheet...")
+        await this.contactManager.saveConnectionNote(this.spreadsheetId, pendingNote)
+        await chrome.storage.local.remove(noteKey)
+        console.log("Processed and cleared pending connection note.")
+      } else if (pendingNote && !this.contactManager.currentContact) {
+        console.log("Found pending note but no current contact loaded")
+      }
 
+      this.populateContactForm()
       console.log("Contact data loaded successfully:", contact)
     } catch (error) {
       console.error("Failed to load contact data:", error)

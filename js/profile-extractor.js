@@ -1,8 +1,12 @@
 // LinkedIn profile data extraction
+// import { chrome } from "chrome" // Removed erroneous import
+
+const chrome = window.chrome // Declare the chrome variable
 
 export class ProfileExtractor {
   static async extractProfileData() {
     try {
+      // Access chrome globally as it's available in extension contexts
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
 
       const results = await chrome.scripting.executeScript({
@@ -210,6 +214,7 @@ export class ProfileExtractor {
     } catch (error) {
       console.error("Profile extraction error:", error)
       try {
+        // Access chrome globally as it's available in extension contexts
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
         return {
           name: "Profile User",

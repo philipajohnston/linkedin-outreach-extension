@@ -16,6 +16,8 @@ class LinkedInProfileDetector {
 
     // Listen for navigation changes (LinkedIn is a SPA)
     this.observeUrlChanges()
+    // Listen for connection note submissions
+    this.listenForConnectionNotes()
   }
 
   isProfilePage() {
@@ -121,6 +123,41 @@ class LinkedInProfileDetector {
 
     // Also check periodically as a fallback
     setInterval(checkUrlChange, 2000)
+  }
+
+  listenForConnectionNotes() {
+    document.body.addEventListener("click", async (event) => {
+      // Find the button that was clicked, even if the click was on an inner element
+      const sendButton = event.target.closest('button[aria-label*="Send invitation"], button[aria-label*="Send now"]')
+      if (!sendButton) return
+
+      console.log("LinkedIn Tracker: Send invitation button clicked.")
+
+      // Find the modal this button belongs to
+      const modal = sendButton.closest('div[role="dialog"]')
+      if (!modal) {
+        console.log("LinkedIn Tracker: Could not find parent modal for send button.")
+        return
+      }
+
+      // Find the message textarea within that modal
+      const messageTextarea = modal.querySelector('textarea[name="message"], textarea#custom-message')
+      const noteText = messageTextarea ? messageTextarea.value.trim() : ""
+
+      if (noteText) {
+        console.log("LinkedIn Tracker: Found connection note:", noteText)
+        const profileUrl = window.location.href.split("?")[0].split("#")[0]
+        const storageKey = `connectionNote_${profileUrl}`
+
+        const chrome = window.chrome // Declare the chrome variable
+        try {
+          await chrome.storage.local.set({ [storageKey]: noteText })
+          console.log(`LinkedIn Tracker: Note saved to temporary storage for ${profileUrl}`)
+        } catch (error) {
+          console.error("LinkedIn Tracker: Error saving note to storage:", error)
+        }
+      }
+    })
   }
 }
 

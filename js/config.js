@@ -1,11 +1,5 @@
-// Configuration and constants
+// Application configuration constants
 export const CONFIG = {
-  SEQUENCE_STEPS: ["warmup", "connect", "chatting", "cta", "interest", "converted"],
-  CLOSURE_REASONS: ["please stop", "not interested", "irrelevant", "other"],
-  DEBOUNCE_DELAY: 1000,
-  MESSAGE_TIMEOUT: 2000,
-  SPREADSHEET_ID_REGEX: /^[a-zA-Z0-9-_]{44}$/,
-  URL_PATTERNS: [/\/spreadsheets\/d\/([a-zA-Z0-9-_]{44})/, /[?&]id=([a-zA-Z0-9-_]{44})/, /([a-zA-Z0-9-_]{44})/],
   SPREADSHEET_HEADERS: [
     "Name",
     "LinkedIn Profile URL",
@@ -16,6 +10,7 @@ export const CONFIG = {
     "Warmup Timestamp",
     "Connect",
     "Connect Timestamp",
+    "Connection Note", // New column for connection note
     "Chatting",
     "Chatting Timestamp",
     "CTA",
@@ -30,4 +25,8 @@ export const CONFIG = {
     "Closed",
     "Closure Reason",
   ],
+  SEQUENCE_STEPS: ["warmup", "connect", "chatting", "cta", "interest", "converted"],
+  URL_PATTERNS: [/spreadsheets\/d\/([a-zA-Z0-9_-]+)\/edit/, /docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/],
+  SPREADSHEET_ID_REGEX: /^[a-zA-Z0-9_-]+$/,
+  DEBOUNCE_DELAY: 500, // milliseconds
 }
