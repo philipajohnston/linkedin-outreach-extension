@@ -184,11 +184,11 @@ export class ContactManager {
         // Prepend closure reason to notes
         const reasonText = `Closure Reason: ${reason || "Not specified"}`
         // Remove old reason if it exists
-        currentNotes = currentNotes.replace(/^Closure Reason: .*\n---\n/, "")
+        currentNotes = currentNotes.replace(/^Closure Reason:  "|| ")
         newNotes = `${reasonText}\n---\n${currentNotes}`
       } else {
         // Remove closure reason from notes
-        newNotes = currentNotes.replace(/^Closure Reason: .*\n---\n/, "")
+        newNotes = currentNotes.replace(/^Closure Reason: "|| ")
       }
 
       await this.sheetsAPI.updateCell(spreadsheetId, statusRange, newStatus)
