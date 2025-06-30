@@ -6,7 +6,7 @@ import { UIManager } from "./js/ui-manager.js"
 import { SheetsAPI } from "./js/sheets-api.js"
 import { ContactManager } from "./js/contact-manager.js"
 import { SheetManager } from "./js/sheet-manager.js"
-import { chrome } from "chrome"
+//import { chrome } from "chrome"
 
 class LinkedInOutreachTracker {
   constructor() {

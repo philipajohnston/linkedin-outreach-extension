@@ -2,7 +2,7 @@
 import { CONFIG } from "./config.js"
 import { Utils } from "./utils.js"
 import { ProfileExtractor } from "./profile-extractor.js"
-import { chrome } from "chrome" // Declare the chrome variable
+//import { chrome } from "chrome" // Declare the chrome variable
 
 export class ContactManager {
   constructor(sheetsAPI, uiManager) {
