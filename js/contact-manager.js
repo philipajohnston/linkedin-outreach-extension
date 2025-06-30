@@ -185,7 +185,7 @@ export class ContactManager {
         const reasonText = `Closure Reason: ${reason || "Not specified"}`
         // Remove old reason if it exists
         currentNotes = currentNotes.replace(/^Closure Reason:  "|| ")
-        newNotes = `${reasonText}\n---\n${currentNotes}`
+        newNotes = `${reasonText}"|| "${currentNotes}`
       } else {
         // Remove closure reason from notes
         newNotes = currentNotes.replace(/^Closure Reason: "|| ")
