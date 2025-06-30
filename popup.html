@@ -332,7 +332,7 @@
 
   .contact-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 12px;
     margin-bottom: 6px;
   }
@@ -345,13 +345,20 @@
     flex: 1;
   }
 
-  .status-checkbox-container {
+  .status-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .closed-checkbox-container {
     display: flex;
     align-items: center;
     gap: 6px;
   }
 
-  .status-checkbox-container label {
+  .closed-checkbox-container label {
     font-size: 12px;
     font-weight: 600;
     color: #6b7280;
@@ -359,7 +366,7 @@
     cursor: pointer;
   }
 
-  .status-checkbox-container input[type="checkbox"] {
+  .closed-checkbox-container input[type="checkbox"] {
     width: 16px;
     height: 16px;
     margin: 0;
@@ -381,31 +388,25 @@
   }
   
   .contact-status {
-    margin-top: 12px;
-    padding: 6px 12px;
+    padding: 4px 10px;
     border-radius: 20px;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    display: inline-block;
     letter-spacing: 0.025em;
+    border: 1px solid;
+    text-align: center;
   }
   
-  .status-new {
+  .status-open {
     background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
     color: #166534;
-    border: 1px solid #86efac;
+    border-color: #86efac;
   }
   
-  .status-existing {
-    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-    color: #1e40af;
-    border: 1px solid #93c5fd;
-  }
-
   .status-closed {
     background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
     color: #991b1b;
-    border: 1px solid #f87171;
+    border-color: #f87171;
   }
   
   .sequence-grid {
@@ -454,26 +455,26 @@
   }
 
   .connection-note-display {
-    background: #f0f9ff;
-    border: 1px solid #bae6fd;
+    background: #f0f9ff; /* Light blue background */
+    border: 1px solid #bae6fd; /* Sky blue border */
     border-radius: 8px;
     padding: 12px 16px;
-    margin-top: 12px;
+    margin-top: 12px; /* Space above */
     font-size: 13px;
-    color: #0c4a6e;
+    color: #0c4a6e; /* Darker blue text */
   }
 
   .connection-note-display strong {
     display: block;
     margin-bottom: 6px;
     font-weight: 600;
-    color: #075985;
+    color: #075985; /* Even darker blue for title */
   }
 
   .connection-note-display p {
     margin: 0;
     line-height: 1.6;
-    white-space: pre-wrap;
+    white-space: pre-wrap; /* Preserve line breaks from the note */
     word-break: break-word;
   }
   
@@ -556,6 +557,7 @@
     font-weight: 700;
   }
 
+  /* Subtle animations for better UX */
   .form-group {
     animation: fadeInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -571,6 +573,7 @@
     }
   }
 
+  /* Improved scrollbar for webkit browsers */
   ::-webkit-scrollbar {
     width: 6px;
   }
@@ -587,12 +590,23 @@
   ::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
   }
+
+.sequence-item.accepted {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-color: #0ea5e9;
+}
+
+.sequence-item.accepted .sequence-label {
+  color: #0c4a6e;
+  font-weight: 700;
+}
 </style>
 </head>
 <body>
   <div class="header">
     <h1>LinkedIn Outreach Tracker</h1>
     
+    <!-- Header Controls -->
     <div class="header-controls">
       <div id="auth-indicator" class="auth-indicator unauthenticated">
         <span id="auth-icon">❌</span>
@@ -603,7 +617,9 @@
       </button>
     </div>
 
+    <!-- Collapsible Settings Panel -->
     <div id="settings-panel" class="settings-panel">
+      <!-- Sheet Management -->
       <div class="sheet-management">
         <h4>📊 Sheet Management</h4>
         <div class="current-sheet">
@@ -625,7 +641,10 @@
   </div>
 
   <div class="content">
-    <div id="loading" class="loading hidden">Loading</div>
+    <div id="loading" class="loading hidden">
+      Loading
+    </div>
+
     <div id="message" class="message hidden"></div>
 
     <!-- Authentication Section -->
@@ -662,33 +681,42 @@
 
     <!-- Contact Section -->
     <div id="contact-section" class="contact-section hidden">
+      <!-- Contact Info -->
       <div id="contact-info" class="contact-info">
         <div class="contact-header">
           <div id="contact-name" class="contact-name"></div>
-          <div class="status-checkbox-container">
-            <input type="checkbox" id="status-checkbox">
-            <label for="status-checkbox">Closed</label>
+          <div class="status-controls">
+            <div id="contact-status" class="contact-status"></div>
+            <div class="closed-checkbox-container">
+              <input type="checkbox" id="closed-checkbox">
+              <label for="closed-checkbox">Mark as Closed</label>
+            </div>
           </div>
         </div>
         <a id="contact-url" class="contact-url" href="#" target="_blank"></a>
-        <div id="contact-status" class="contact-status"></div>
       </div>
 
+      <!-- Cohort Management -->
       <div class="form-group">
         <label for="cohort-input">📅 Current Cohort:</label>
         <input type="text" id="cohort-input" placeholder="e.g., Q1 2024 Tech Leads">
       </div>
 
+      <!-- Outreach Sequence -->
       <div class="form-group">
         <label>🎯 Outreach Sequence:</label>
-        <div class="sequence-grid" id="sequence-grid"></div>
+        <div class="sequence-grid" id="sequence-grid">
+          <!-- Sequence items will be populated by JavaScript -->
+        </div>
       </div>
 
+      <!-- Connection Note Display -->
       <div id="connection-note-display" class="form-group connection-note-display hidden">
         <strong>💬 Connection Note:</strong>
         <p>No note captured.</p>
       </div>
 
+      <!-- Type Management -->
       <div class="form-group">
         <label for="type-select">🏷️ Contact Type:</label>
         <select id="type-select">
@@ -696,6 +724,7 @@
         </select>
       </div>
 
+      <!-- Notes Management -->
       <div class="form-group">
         <label for="notes-input">📝 Notes:</label>
         <textarea id="notes-input" placeholder="Add any notes about this contact..." rows="3"></textarea>
@@ -703,6 +732,7 @@
     </div>
   </div>
 
+  <!-- Load the main script as a module -->
   <script type="module" src="popup.js"></script>
 </body>
 </html>
