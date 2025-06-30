@@ -1,5 +1,4 @@
 // LinkedIn profile data extraction
-// import { chrome } from "chrome" // Removed erroneous import
 
 const chrome = window.chrome // Declare the chrome variable
 
@@ -33,65 +32,130 @@ export class ProfileExtractor {
             }
           }
 
-          // Check connection status - look for "1st" degree indicator
+          // Check connection status - look for "1st" degree indicator near the name
           let isFirstDegreeConnection = false
-          const connectionIndicators = [
-            // Main profile connection badge
-            '.pv-top-card--list-bullet:contains("1st")',
-            '.dist-value:contains("1st")',
-            // Alternative selectors for connection degree
-            'span[class*="dist"]:contains("1st")',
-            ".pv-top-card .dist-value",
-            // Message button presence (usually indicates 1st degree)
-            'button[aria-label*="Message"]',
-            // More specific selectors
-            ".pv-top-card--list .dist-value",
-            ".pv-top-card .pv-top-card--list-bullet",
-          ]
 
-          // Check for "1st" text in various elements
-          const allTextElements = document.querySelectorAll("*")
-          for (const element of allTextElements) {
-            const text = element.textContent || element.innerText || ""
-            if (
-              text.includes("1st") &&
-              (text.includes("degree") || text.includes("connection") || element.classList.toString().includes("dist"))
-            ) {
-              isFirstDegreeConnection = true
-              console.log("Found 1st degree connection indicator:", text.trim())
-              break
-            }
-          }
+          try {
+            console.log("Checking for 1st degree connection status...")
 
-          // Alternative check: Look for Message button which typically indicates 1st degree connection
-          if (!isFirstDegreeConnection) {
-            const messageButton = document.querySelector('button[aria-label*="Message"], button:contains("Message")')
-            if (messageButton) {
-              isFirstDegreeConnection = true
-              console.log("Found Message button - likely 1st degree connection")
-            }
-          }
+            // Strategy: Look for the connection degree in the name/header area
+            // The connection degree typically appears as the last element after name, verified badge, pronouns
 
-          // Alternative check: Look for specific LinkedIn connection classes
-          if (!isFirstDegreeConnection) {
-            const connectionElements = document.querySelectorAll(
-              '.dist-value, [class*="degree"], [class*="connection"]',
-            )
-            for (const element of connectionElements) {
-              if (element.textContent.includes("1st")) {
-                isFirstDegreeConnection = true
-                console.log("Found 1st degree in connection element:", element.textContent.trim())
+            // First, try to find the main profile header container
+            const profileHeaderSelectors = [
+              ".pv-text-details__left-panel",
+              ".pv-top-card--list",
+              "main section:first-of-type",
+              ".pv-top-card",
+              '[data-section="topCard"]',
+            ]
+
+            let headerContainer = null
+            for (const selector of profileHeaderSelectors) {
+              headerContainer = document.querySelector(selector)
+              if (headerContainer) {
+                console.log("Found header container with selector:", selector)
                 break
               }
             }
+
+            if (headerContainer) {
+              // Look for connection degree indicators within the header
+              // These are typically small text elements that contain "1st", "2nd", "3rd"
+              const degreeSelectors = [
+                ".dist-value",
+                '[class*="dist"]',
+                ".pv-top-card--list-bullet",
+                'span[class*="degree"]',
+                // More generic selectors for degree indicators
+                'span:contains("1st")',
+                'div:contains("1st")',
+              ]
+
+              // Check specific degree selector elements first
+              for (const selector of degreeSelectors) {
+                const elements = headerContainer.querySelectorAll(selector)
+                for (const element of elements) {
+                  const text = element.textContent?.trim() || ""
+                  if (text === "1st" || text.includes("1st")) {
+                    isFirstDegreeConnection = true
+                    console.log("Found 1st degree connection via selector:", selector, "Text:", text)
+                    break
+                  }
+                }
+                if (isFirstDegreeConnection) break
+              }
+
+              // If not found with specific selectors, do a more comprehensive search
+              if (!isFirstDegreeConnection) {
+                console.log("Specific selectors failed, trying comprehensive search...")
+
+                // Get all text-containing elements in the header area
+                const allElements = headerContainer.querySelectorAll("*")
+                const textElements = Array.from(allElements).filter((el) => {
+                  const text = el.textContent?.trim() || ""
+                  // Look for elements that contain degree indicators
+                  return text.match(/^(1st|2nd|3rd)$/) || text.match(/\b(1st|2nd|3rd)\b/) || text.includes("degree")
+                })
+
+                console.log("Found potential degree elements:", textElements.length)
+
+                for (const element of textElements) {
+                  const text = element.textContent?.trim() || ""
+                  console.log("Checking element text:", text)
+
+                  // Check if this element specifically contains "1st"
+                  if (text === "1st" || text.match(/\b1st\b/)) {
+                    // Additional validation: make sure this isn't part of a larger text block
+                    // and is likely the connection degree indicator
+                    const elementRect = element.getBoundingClientRect()
+                    const isSmallElement = elementRect.width < 100 && elementRect.height < 50
+
+                    if (isSmallElement || text.length < 10) {
+                      isFirstDegreeConnection = true
+                      console.log("Found 1st degree connection via comprehensive search:", text)
+                      break
+                    }
+                  }
+                }
+              }
+
+              // Final fallback: look for "1st" in the immediate vicinity of the name
+              if (!isFirstDegreeConnection) {
+                console.log("Trying final fallback search near name...")
+
+                // Find the name element and look for siblings or nearby elements
+                const nameElement = headerContainer.querySelector('h1, [class*="name"], .pv-top-card--list h1')
+                if (nameElement) {
+                  const nameParent = nameElement.parentElement
+                  if (nameParent) {
+                    const nearbyText = nameParent.textContent || ""
+                    // Look for "1st" that appears after the name but before other major content
+                    const nameText = nameElement.textContent || ""
+                    const afterNameText = nearbyText.substring(nearbyText.indexOf(nameText) + nameText.length)
+
+                    if (afterNameText.match(/\b1st\b/) && afterNameText.indexOf("1st") < 100) {
+                      isFirstDegreeConnection = true
+                      console.log("Found 1st degree connection via name proximity search")
+                    }
+                  }
+                }
+              }
+            } else {
+              console.log("Could not find profile header container")
+            }
+          } catch (error) {
+            console.log("Error in connection degree detection (non-fatal):", error)
+            // Don't throw - let the rest of the extraction continue
+            isFirstDegreeConnection = false
           }
 
-          console.log("Connection status - Is 1st degree:", isFirstDegreeConnection)
+          console.log("Final connection status - Is 1st degree:", isFirstDegreeConnection)
 
           let role = ""
           let company = ""
 
-          // Find Experience section
+          // Find Experience section (existing logic)
           let experienceSection = null
           const sectionHeadings = document.querySelectorAll(
             "h2#experience, section[aria-labelledby='experience'] h2, div[id='experience'] ~ .pvs-header__container h2, section[id='experience'] h2",
