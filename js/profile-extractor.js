@@ -84,122 +84,63 @@ export class ProfileExtractor {
             }
           }
 
-          // Check connection status - look for "1st" degree indicator near the name
-          // IMPORTANT: Only detect as 1st degree if we find EXACTLY "1st", not "2nd" or "3rd"
+          // Check connection status
+          // PRIMARY METHOD: Check for "Connect" button - if present, they are NOT 1st degree (definitive)
+          // This is the most reliable signal because LinkedIn always shows Connect for non-connections
           let isFirstDegreeConnection = false
 
           try {
             console.log("Checking for 1st degree connection status...")
 
-            // Strategy 1: Look for the degree badge right next to the name (current LinkedIn shows "Name · 1st" or "Name · 2nd")
-            // The degree indicator appears as a small span near the h2 name element
+            // DEFINITIVE CHECK: Look for a Connect button on the page
+            // If there's a Connect button, the user is NOT a 1st degree connection
+            let hasConnectButton = false
+            const allButtons = document.querySelectorAll('button')
             
-            // Find the topcard/name section - can be section OR div with various componentkey patterns
-            const topcardSection = document.querySelector(
-              '[data-sdui-component*="profileTopCardSection"], ' +
-              '[componentkey*="RvgTopcard"], ' +
-              '[componentkey*="Topcard"], ' +
-              'section[componentkey*="Topcard"], ' +
-              '[data-sdui-screen*="Profile"] section:first-of-type'
-            )
-            
-            if (topcardSection) {
-              console.log("[v0] Found topcard section for connection degree detection")
+            for (const btn of allButtons) {
+              const btnText = (btn.textContent || '').trim().toLowerCase()
+              const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase()
               
-              // LinkedIn SDUI uses <p> elements for the degree indicator (e.g., "· 2nd")
-              // Look for p elements first (most reliable), then span and div
-              const degreeElements = topcardSection.querySelectorAll('p, span, div')
+              // Check for Connect button (but not "Connected" or "Pending")
+              const isConnectButton = (
+                btnText === 'connect' ||
+                btnText.startsWith('connect ') ||
+                ariaLabel === 'connect' ||
+                ariaLabel.startsWith('connect ')
+              )
               
-              let foundDegree = false
-              for (const el of degreeElements) {
-                const fullText = el.textContent?.trim() || ''
-                
-                // Skip empty or long text (degree indicators are short)
-                if (!fullText || fullText.length > 10) continue
-                
-                // Match patterns like "· 1st", "· 2nd", "· 3rd" or just "1st", "2nd", "3rd"
-                // Use flexible separator matching: middle dot (·), bullet (•), or any non-word char
-                // Also match standalone degree text
-                const degreeMatch = fullText.match(/^[\s·•\-–—]*\s*(1st|2nd|3rd)\s*$/i) || 
-                                   fullText.match(/\b(1st|2nd|3rd)\b/i)
-                
-                if (degreeMatch) {
-                  const degree = degreeMatch[1]
-                  console.log("[v0] Found degree indicator:", JSON.stringify(fullText), "-> degree:", degree)
-                  
-                  if (degree === '1st') {
-                    isFirstDegreeConnection = true
-                    console.log("[v0] Confirmed 1st degree connection")
-                  } else {
-                    // Explicitly NOT 1st degree
-                    isFirstDegreeConnection = false
-                    console.log("[v0] Confirmed NOT 1st degree connection (found:", degree, ")")
-                  }
-                  foundDegree = true
-                  break
-                }
-              }
+              const isNotConnectedOrPending = (
+                !btnText.includes('connected') &&
+                !btnText.includes('pending') &&
+                !ariaLabel.includes('connected') &&
+                !ariaLabel.includes('pending')
+              )
               
-              if (!foundDegree) {
-                console.log("[v0] No degree indicator found in topcard, checking first few p elements...")
-                const pElements = topcardSection.querySelectorAll('p')
-                for (let i = 0; i < Math.min(pElements.length, 10); i++) {
-                  console.log("[v0] p element", i, ":", JSON.stringify(pElements[i].textContent?.trim()))
-                }
+              if (isConnectButton && isNotConnectedOrPending) {
+                hasConnectButton = true
+                console.log("Found Connect button:", btnText || ariaLabel)
+                break
               }
             }
             
-            // Fallback: Search the entire main profile area for degree indicator
-            if (!topcardSection) {
-              console.log("[v0] Topcard not found, searching main profile area for degree...")
-              const mainProfile = document.querySelector('main[data-sdui-screen*="Profile"], [data-sdui-screen*="Profile"]')
-              if (mainProfile) {
-                const allParagraphs = mainProfile.querySelectorAll('p')
-                for (const p of allParagraphs) {
-                  const text = p.textContent?.trim() || ''
-                  if (!text || text.length > 10) continue
-                  const degreeMatch = text.match(/^[\s·•\-–—]*\s*(1st|2nd|3rd)\s*$/i) || text.match(/\b(1st|2nd|3rd)\b/i)
-                  if (degreeMatch) {
-                    const degree = degreeMatch[1]
-                    console.log("[v0] Found degree indicator in main area:", JSON.stringify(text), "-> degree:", degree)
-                    isFirstDegreeConnection = (degree === '1st')
-                    break
-                  }
-                }
-              }
+            if (hasConnectButton) {
+              // Connect button exists = NOT a 1st degree connection
+              isFirstDegreeConnection = false
+              console.log("Connect button found - confirmed NOT 1st degree connection")
             } else {
-              console.log("[v0] Topcard was found, skipping main area fallback")
-            }
-            
-            // Strategy 2: Check for "Message" button without "Connect" button
-            // 1st degree connections have Message button but no Connect button
-            if (!isFirstDegreeConnection) {
-              const connectButton = document.querySelector('button:not([disabled])')
-              let hasConnectButton = false
-              let hasMessageButton = false
+              // No Connect button - likely 1st degree, but verify with Message button
+              const hasMessageButton = Array.from(allButtons).some(btn => {
+                const text = (btn.textContent || '').trim().toLowerCase()
+                return text === 'message'
+              })
               
-              // Look for buttons in the profile action area
-              const actionButtons = document.querySelectorAll('button, a[role="button"]')
-              for (const btn of actionButtons) {
-                const btnText = btn.textContent?.toLowerCase().trim() || ''
-                const ariaLabel = btn.getAttribute('aria-label')?.toLowerCase() || ''
-                
-                if (btnText.includes('connect') || ariaLabel.includes('connect')) {
-                  // Make sure it's not "Connected" or "Pending"
-                  if (!btnText.includes('connected') && !btnText.includes('pending')) {
-                    hasConnectButton = true
-                    console.log("Found Connect button - not 1st degree")
-                  }
-                }
-                if (btnText === 'message' || ariaLabel.includes('message')) {
-                  hasMessageButton = true
-                }
-              }
-              
-              // If there's a Connect button, they're definitely NOT 1st degree
-              if (hasConnectButton) {
+              if (hasMessageButton) {
+                isFirstDegreeConnection = true
+                console.log("No Connect button + Message button present - confirmed 1st degree connection")
+              } else {
+                // Neither button found - default to false (not connected)
                 isFirstDegreeConnection = false
-                console.log("Connect button present - confirmed NOT 1st degree connection")
+                console.log("Neither Connect nor Message button found - defaulting to NOT 1st degree")
               }
             }
             
