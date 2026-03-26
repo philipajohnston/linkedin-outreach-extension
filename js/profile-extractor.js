@@ -99,6 +99,12 @@ export class ProfileExtractor {
               const pElements = topcard.querySelectorAll('p')
               
               for (const p of pElements) {
+                // IMPORTANT: Skip <p> elements inside data-display-contents="true" containers
+                // These are hidden/utility elements that may contain misleading degree text
+                if (p.closest('[data-display-contents="true"]')) {
+                  continue
+                }
+                
                 const text = (p.textContent || '').trim()
                 
                 // EXACT match only - degree indicators are exactly these strings
