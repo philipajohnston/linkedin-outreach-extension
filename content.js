@@ -129,36 +129,103 @@ class LinkedInProfileDetector {
     const chrome = window.chrome
     
     document.body.addEventListener("click", async (event) => {
-      // Find the button that was clicked - expanded selectors for current LinkedIn
-      const sendButton = event.target.closest(
-        'button[aria-label*="Send invitation"], button[aria-label*="Send now"], button[aria-label*="Send"], button[aria-label*="send"]'
-      )
-      
-      // Also check if this is a send button by its text content
+      // Find the button that was clicked
       const clickedButton = event.target.closest('button')
-      const isSendButton = sendButton || (clickedButton && 
-        (clickedButton.textContent.toLowerCase().includes('send') || 
-         clickedButton.textContent.toLowerCase().includes('connect')))
+      if (!clickedButton) return
+      
+      // Check if this is a send/connect button by multiple criteria
+      const ariaLabel = (clickedButton.getAttribute('aria-label') || '').toLowerCase()
+      const buttonText = (clickedButton.textContent || '').toLowerCase().trim()
+      
+      const isSendButton = 
+        ariaLabel.includes('send invitation') ||
+        ariaLabel.includes('send now') ||
+        (ariaLabel.includes('send') && !ariaLabel.includes('message')) ||
+        buttonText === 'send' ||
+        buttonText === 'send invitation' ||
+        buttonText === 'send now'
       
       if (!isSendButton) return
 
-      console.log("LinkedIn Tracker: Potential send/connect button clicked.")
+      console.log("LinkedIn Tracker: Send button clicked, looking for connection note...")
 
-      // Find the modal - try multiple selectors for current LinkedIn
-      const modal = event.target.closest('div[role="dialog"], .artdeco-modal, .send-invite, [data-test-modal]')
+      // Strategy 1: Find the send-invite modal specifically (most reliable)
+      // LinkedIn uses data-test-modal-id="send-invite-modal" or aria-labelledby="send-invite-modal"
+      let modal = document.querySelector(
+        '[data-test-modal-id="send-invite-modal"], ' +
+        '[aria-labelledby="send-invite-modal"], ' +
+        'div[data-test-modal-container][data-test-modal-id="send-invite-modal"]'
+      )
+      
+      // Strategy 2: Find modal by looking up from the clicked button
       if (!modal) {
-        console.log("LinkedIn Tracker: Could not find parent modal for send button.")
+        modal = event.target.closest(
+          '[data-test-modal-id="send-invite-modal"], ' +
+          'div[role="dialog"][aria-labelledby*="invite"], ' +
+          'div[role="dialog"].artdeco-modal, ' +
+          '.artdeco-modal-overlay'
+        )
+      }
+      
+      // Strategy 3: Find any open dialog that might contain the invite form
+      if (!modal) {
+        modal = document.querySelector(
+          'div[role="dialog"]:not([aria-hidden="true"]), ' +
+          '.artdeco-modal:not([aria-hidden="true"])'
+        )
+      }
+      
+      if (!modal) {
+        console.log("LinkedIn Tracker: Could not find invite modal.")
         return
       }
+      
+      console.log("LinkedIn Tracker: Found modal, searching for textarea...")
 
-      // Find the message textarea within that modal - expanded selectors
-      const messageTextarea = modal.querySelector(
-        'textarea[name="message"], textarea#custom-message, textarea.connect-button-send-invite__custom-message, textarea[id*="message"], textarea'
-      )
+      // Find the message textarea - prioritize specific selectors
+      // From DOM: id="custom-message", name="message", class contains "connect-button-send-invite__custom-message"
+      const textareaSelectors = [
+        'textarea#custom-message',
+        'textarea[name="message"]',
+        'textarea.connect-button-send-invite__custom-message',
+        'textarea[class*="connect-button-send-invite"]',
+        'textarea[class*="custom-message"]',
+        'textarea[id*="custom-message"]',
+        'textarea[placeholder*="We know each other"]',
+        'textarea'  // Last resort: any textarea in the modal
+      ]
+      
+      let messageTextarea = null
+      for (const selector of textareaSelectors) {
+        try {
+          messageTextarea = modal.querySelector(selector)
+          if (messageTextarea && messageTextarea.value !== undefined) {
+            console.log("LinkedIn Tracker: Found textarea with selector:", selector)
+            break
+          }
+        } catch (e) {
+          // Skip invalid selectors
+        }
+      }
+      
+      // Also try finding textarea in the entire document if modal search failed
+      // (sometimes the modal structure is tricky)
+      if (!messageTextarea) {
+        for (const selector of textareaSelectors.slice(0, -1)) { // Skip generic 'textarea'
+          try {
+            messageTextarea = document.querySelector(selector)
+            if (messageTextarea && messageTextarea.value !== undefined) {
+              console.log("LinkedIn Tracker: Found textarea in document with selector:", selector)
+              break
+            }
+          } catch (e) {}
+        }
+      }
+      
       const noteText = messageTextarea ? messageTextarea.value.trim() : ""
 
       if (noteText) {
-        console.log("LinkedIn Tracker: Found connection note:", noteText)
+        console.log("LinkedIn Tracker: Found connection note:", noteText.substring(0, 50) + "...")
         const profileUrl = window.location.href.split("?")[0].split("#")[0]
         const storageKey = `connectionNote_${profileUrl}`
 
@@ -169,7 +236,7 @@ class LinkedInProfileDetector {
           console.error("LinkedIn Tracker: Error saving note to storage:", error)
         }
       } else {
-        console.log("LinkedIn Tracker: No note text found in modal textarea.")
+        console.log("LinkedIn Tracker: No note text found in textarea (may be empty or not present).")
       }
     })
   }
