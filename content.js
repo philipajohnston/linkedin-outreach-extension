@@ -127,77 +127,82 @@ class LinkedInProfileDetector {
 
   listenForConnectionNotes() {
     const chrome = window.chrome
+    console.log("[v0] listenForConnectionNotes initialized")
     
-    // Track the last seen note value - updated whenever textarea changes
-    let lastNoteValue = ""
+    // Store the note value whenever it changes - this is our primary capture method
+    let pendingNote = ""
     
-    // Listen for input changes on any textarea that appears (for the invite modal)
-    document.body.addEventListener("input", (event) => {
-      if (event.target.tagName === 'TEXTAREA') {
-        const textarea = event.target
-        // Check if this is the invite note textarea
-        if (textarea.id === 'custom-message' || 
-            textarea.name === 'message' ||
-            textarea.className.includes('connect-button-send-invite')) {
-          lastNoteValue = textarea.value.trim()
-          console.log("LinkedIn Tracker: Note value updated:", lastNoteValue.substring(0, 30) + "...")
-        }
-      }
-    }, true)
-    
-    // Use mousedown to capture BEFORE the modal closes
-    document.body.addEventListener("mousedown", async (event) => {
-      const clickedButton = event.target.closest('button')
-      if (!clickedButton) return
+    // Capture note value on ANY input to a textarea (use capture phase)
+    document.addEventListener("input", (event) => {
+      const target = event.target
+      if (target.tagName !== 'TEXTAREA') return
       
-      const ariaLabel = (clickedButton.getAttribute('aria-label') || '').toLowerCase()
-      const buttonText = (clickedButton.textContent || '').toLowerCase().trim()
+      // Log ALL textareas to see what's available
+      console.log("[v0] Textarea input detected - id:", target.id, "name:", target.name, "class:", target.className)
       
-      const isSendButton = 
-        ariaLabel.includes('send invitation') ||
-        ariaLabel.includes('send now') ||
-        buttonText === 'send' ||
-        buttonText === 'send invitation' ||
-        buttonText === 'send now'
-      
-      if (!isSendButton) return
-
-      console.log("LinkedIn Tracker: Send button mousedown, capturing note...")
-
-      // Try to get the note directly from textarea first
-      let noteText = ""
-      const textarea = document.querySelector(
-        'textarea#custom-message, ' +
-        'textarea[name="message"], ' +
-        'textarea.connect-button-send-invite__custom-message'
+      // Check if this looks like the invite note textarea
+      const isInviteTextarea = (
+        target.id === 'custom-message' ||
+        target.name === 'message' ||
+        (target.className && target.className.includes('connect-button-send-invite'))
       )
       
-      if (textarea) {
+      if (isInviteTextarea) {
+        pendingNote = target.value
+        console.log("[v0] Captured invite note:", pendingNote.substring(0, 50))
+      }
+    }, true) // Use capture phase to get events before they're consumed
+    
+    // Also listen for any button click that might be a send action
+    document.addEventListener("click", async (event) => {
+      const button = event.target.closest('button')
+      if (!button) return
+      
+      const buttonText = (button.textContent || '').trim().toLowerCase()
+      const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase()
+      
+      console.log("[v0] Button clicked - text:", buttonText, "aria:", ariaLabel)
+      
+      // Check if this is the send button
+      const isSendButton = (
+        buttonText === 'send' ||
+        buttonText === 'send now' ||
+        buttonText.startsWith('send invitation') ||
+        ariaLabel.includes('send invitation') ||
+        ariaLabel.includes('send now')
+      )
+      
+      if (!isSendButton) return
+      
+      console.log("[v0] Send button detected!")
+      
+      // Try to grab textarea value directly first (in case input event missed it)
+      let noteText = pendingNote
+      const textarea = document.querySelector('textarea#custom-message, textarea[name="message"]')
+      if (textarea && textarea.value) {
         noteText = textarea.value.trim()
-        console.log("LinkedIn Tracker: Got note directly from textarea")
-      } else if (lastNoteValue) {
-        // Fall back to the last tracked value
-        noteText = lastNoteValue
-        console.log("LinkedIn Tracker: Using last tracked note value")
+        console.log("[v0] Got note from textarea directly:", noteText.substring(0, 50))
       }
-
-      if (noteText) {
-        console.log("LinkedIn Tracker: Found connection note:", noteText.substring(0, 50) + "...")
-        const profileUrl = window.location.href.split("?")[0].split("#")[0]
-        const storageKey = `connectionNote_${profileUrl}`
-
-        try {
-          await chrome.storage.local.set({ [storageKey]: noteText })
-          console.log(`LinkedIn Tracker: Note saved to storage for ${profileUrl}`)
-          // Clear the tracked value after saving
-          lastNoteValue = ""
-        } catch (error) {
-          console.error("LinkedIn Tracker: Error saving note to storage:", error)
-        }
-      } else {
-        console.log("LinkedIn Tracker: No note text found.")
+      
+      if (!noteText) {
+        console.log("[v0] No note text to save")
+        return
       }
-    })
+      
+      // Save to storage
+      const profileUrl = window.location.href.split("?")[0].split("#")[0]
+      const storageKey = `connectionNote_${profileUrl}`
+      
+      console.log("[v0] Saving note to storage key:", storageKey)
+      
+      try {
+        await chrome.storage.local.set({ [storageKey]: noteText })
+        console.log("[v0] Note saved successfully!")
+        pendingNote = "" // Clear after saving
+      } catch (error) {
+        console.error("[v0] Error saving note:", error)
+      }
+    }, true) // Use capture phase
   }
 }
 
