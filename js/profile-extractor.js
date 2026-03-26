@@ -67,23 +67,37 @@ export class ProfileExtractor {
                 '[class*="dist"]',
                 ".pv-top-card--list-bullet",
                 'span[class*="degree"]',
-                // More generic selectors for degree indicators
-                'span:contains("1st")',
-                'div:contains("1st")',
               ]
 
               // Check specific degree selector elements first
               for (const selector of degreeSelectors) {
-                const elements = headerContainer.querySelectorAll(selector)
-                for (const element of elements) {
-                  const text = element.textContent?.trim() || ""
-                  if (text === "1st" || text.includes("1st")) {
+                try {
+                  const elements = headerContainer.querySelectorAll(selector)
+                  for (const element of elements) {
+                    const text = element.textContent?.trim() || ""
+                    if (text === "1st" || text.includes("1st")) {
+                      isFirstDegreeConnection = true
+                      console.log("Found 1st degree connection via selector:", selector, "Text:", text)
+                      break
+                    }
+                  }
+                  if (isFirstDegreeConnection) break
+                } catch (e) {
+                  // Skip invalid selectors
+                }
+              }
+              
+              // Search all spans in header for "1st" text content
+              if (!isFirstDegreeConnection) {
+                const allSpans = headerContainer.querySelectorAll("span")
+                for (const span of allSpans) {
+                  const text = span.textContent?.trim() || ""
+                  if (text === "1st" || text.match(/^1st$/)) {
                     isFirstDegreeConnection = true
-                    console.log("Found 1st degree connection via selector:", selector, "Text:", text)
+                    console.log("Found 1st degree via span search:", text)
                     break
                   }
                 }
-                if (isFirstDegreeConnection) break
               }
 
               // If not found with specific selectors, do a more comprehensive search
