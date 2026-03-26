@@ -85,122 +85,97 @@ export class ProfileExtractor {
           }
 
           // Check connection status - look for "1st" degree indicator near the name
+          // IMPORTANT: Only detect as 1st degree if we find EXACTLY "1st", not "2nd" or "3rd"
           let isFirstDegreeConnection = false
 
           try {
             console.log("Checking for 1st degree connection status...")
 
-            // Strategy: Look for the connection degree in the name/header area
-            // The connection degree typically appears as the last element after name, verified badge, pronouns
-
-            // First, try to find the main profile header container
-            const profileHeaderSelectors = [
-              ".pv-text-details__left-panel",
-              ".pv-top-card--list",
-              "main section:first-of-type",
-              ".pv-top-card",
-              '[data-section="topCard"]',
-            ]
-
-            let headerContainer = null
-            for (const selector of profileHeaderSelectors) {
-              headerContainer = document.querySelector(selector)
-              if (headerContainer) {
-                console.log("Found header container with selector:", selector)
-                break
+            // Strategy 1: Look for the degree badge right next to the name (current LinkedIn shows "Name · 1st" or "Name · 2nd")
+            // The degree indicator appears as a small span near the h2 name element
+            
+            // Find the topcard/name section
+            const topcardSection = document.querySelector(
+              'section[componentkey*="RvgTopcard"], section[componentkey*="Topcard"], [data-sdui-screen*="Profile"] section:first-of-type'
+            )
+            
+            if (topcardSection) {
+              console.log("Found topcard section for connection degree detection")
+              
+              // Look for exact degree text - should be a small element with just "1st", "2nd", or "3rd"
+              // First, find elements that contain ONLY the degree indicator
+              const allSpans = topcardSection.querySelectorAll('span, div')
+              
+              for (const el of allSpans) {
+                // Get direct text content (not including children's text)
+                const directText = Array.from(el.childNodes)
+                  .filter(node => node.nodeType === Node.TEXT_NODE)
+                  .map(node => node.textContent.trim())
+                  .join('')
+                
+                const fullText = el.textContent?.trim() || ''
+                
+                // Check for exact match or very short text containing degree
+                // Must be specific: "1st" should match, but "21st" should not
+                const isExact1st = directText === '1st' || fullText === '1st'
+                const isExact2nd = directText === '2nd' || fullText === '2nd' 
+                const isExact3rd = directText === '3rd' || fullText === '3rd'
+                
+                // Also check for "· 1st" pattern (with separator)
+                const hasDegreeSeparator = fullText.match(/^·?\s*(1st|2nd|3rd)\s*$/)
+                
+                if (isExact1st || (hasDegreeSeparator && hasDegreeSeparator[1] === '1st')) {
+                  // Validate it's a small UI element, not a large text block
+                  if (fullText.length < 15) {
+                    isFirstDegreeConnection = true
+                    console.log("Found 1st degree connection - exact match:", fullText)
+                    break
+                  }
+                }
+                
+                // If we find 2nd or 3rd, we know they're NOT a 1st degree connection
+                if (isExact2nd || isExact3rd || (hasDegreeSeparator && hasDegreeSeparator[1] !== '1st')) {
+                  console.log("Found non-1st degree indicator:", fullText)
+                  isFirstDegreeConnection = false
+                  break
+                }
               }
             }
-
-            if (headerContainer) {
-              // Look for connection degree indicators within the header
-              // These are typically small text elements that contain "1st", "2nd", "3rd"
-              // Valid CSS selectors only - no jQuery :contains()
-              const degreeSelectors = [
-                ".dist-value",
-                '[class*="dist"]',
-                ".pv-top-card--list-bullet",
-                'span[class*="degree"]',
-              ]
-
-              // Check specific degree selector elements first
-              for (const selector of degreeSelectors) {
-                try {
-                  const elements = headerContainer.querySelectorAll(selector)
-                  for (const element of elements) {
-                    const text = element.textContent?.trim() || ""
-                    if (text === "1st" || text.includes("1st")) {
-                      isFirstDegreeConnection = true
-                      console.log("Found 1st degree connection via selector:", selector, "Text:", text)
-                      break
-                    }
-                  }
-                  if (isFirstDegreeConnection) break
-                } catch (e) {
-                  // Skip invalid selectors silently
-                }
-              }
-
-              // If not found with specific selectors, do a more comprehensive search
-              if (!isFirstDegreeConnection) {
-                console.log("Specific selectors failed, trying comprehensive search...")
-
-                // Get all text-containing elements in the header area
-                const allElements = headerContainer.querySelectorAll("*")
-                const textElements = Array.from(allElements).filter((el) => {
-                  const text = el.textContent?.trim() || ""
-                  // Look for elements that contain degree indicators
-                  return text.match(/^(1st|2nd|3rd)$/) || text.match(/\b(1st|2nd|3rd)\b/) || text.includes("degree")
-                })
-
-                console.log("Found potential degree elements:", textElements.length)
-
-                for (const element of textElements) {
-                  const text = element.textContent?.trim() || ""
-                  console.log("Checking element text:", text)
-
-                  // Check if this element specifically contains "1st"
-                  if (text === "1st" || text.match(/\b1st\b/)) {
-                    // Additional validation: make sure this isn't part of a larger text block
-                    // and is likely the connection degree indicator
-                    const elementRect = element.getBoundingClientRect()
-                    const isSmallElement = elementRect.width < 100 && elementRect.height < 50
-
-                    if (isSmallElement || text.length < 10) {
-                      isFirstDegreeConnection = true
-                      console.log("Found 1st degree connection via comprehensive search:", text)
-                      break
-                    }
+            
+            // Strategy 2: Check for "Message" button without "Connect" button
+            // 1st degree connections have Message button but no Connect button
+            if (!isFirstDegreeConnection) {
+              const connectButton = document.querySelector('button:not([disabled])')
+              let hasConnectButton = false
+              let hasMessageButton = false
+              
+              // Look for buttons in the profile action area
+              const actionButtons = document.querySelectorAll('button, a[role="button"]')
+              for (const btn of actionButtons) {
+                const btnText = btn.textContent?.toLowerCase().trim() || ''
+                const ariaLabel = btn.getAttribute('aria-label')?.toLowerCase() || ''
+                
+                if (btnText.includes('connect') || ariaLabel.includes('connect')) {
+                  // Make sure it's not "Connected" or "Pending"
+                  if (!btnText.includes('connected') && !btnText.includes('pending')) {
+                    hasConnectButton = true
+                    console.log("Found Connect button - not 1st degree")
                   }
                 }
-              }
-
-              // Final fallback: look for "1st" in the immediate vicinity of the name
-              if (!isFirstDegreeConnection) {
-                console.log("Trying final fallback search near name...")
-
-                // Find the name element and look for siblings or nearby elements
-                const nameElement = headerContainer.querySelector('h1, [class*="name"], .pv-top-card--list h1')
-                if (nameElement) {
-                  const nameParent = nameElement.parentElement
-                  if (nameParent) {
-                    const nearbyText = nameParent.textContent || ""
-                    // Look for "1st" that appears after the name but before other major content
-                    const nameText = nameElement.textContent || ""
-                    const afterNameText = nearbyText.substring(nearbyText.indexOf(nameText) + nameText.length)
-
-                    if (afterNameText.match(/\b1st\b/) && afterNameText.indexOf("1st") < 100) {
-                      isFirstDegreeConnection = true
-                      console.log("Found 1st degree connection via name proximity search")
-                    }
-                  }
+                if (btnText === 'message' || ariaLabel.includes('message')) {
+                  hasMessageButton = true
                 }
               }
-            } else {
-              console.log("Could not find profile header container")
+              
+              // If there's a Connect button, they're definitely NOT 1st degree
+              if (hasConnectButton) {
+                isFirstDegreeConnection = false
+                console.log("Connect button present - confirmed NOT 1st degree connection")
+              }
             }
+            
           } catch (error) {
             console.log("Error in connection degree detection (non-fatal):", error)
-            // Don't throw - let the rest of the extraction continue
             isFirstDegreeConnection = false
           }
 
