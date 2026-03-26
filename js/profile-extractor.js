@@ -102,41 +102,29 @@ export class ProfileExtractor {
             if (topcardSection) {
               console.log("Found topcard section for connection degree detection")
               
-              // Look for exact degree text - should be a small element with just "1st", "2nd", or "3rd"
-              // First, find elements that contain ONLY the degree indicator
-              const allSpans = topcardSection.querySelectorAll('span, div')
+              // LinkedIn SDUI uses <p> elements for the degree indicator (e.g., "· 2nd")
+              // Look for p, span, and div elements that contain the degree
+              const degreeElements = topcardSection.querySelectorAll('p, span, div')
               
-              for (const el of allSpans) {
-                // Get direct text content (not including children's text)
-                const directText = Array.from(el.childNodes)
-                  .filter(node => node.nodeType === Node.TEXT_NODE)
-                  .map(node => node.textContent.trim())
-                  .join('')
-                
+              for (const el of degreeElements) {
                 const fullText = el.textContent?.trim() || ''
                 
-                // Check for exact match or very short text containing degree
-                // Must be specific: "1st" should match, but "21st" should not
-                const isExact1st = directText === '1st' || fullText === '1st'
-                const isExact2nd = directText === '2nd' || fullText === '2nd' 
-                const isExact3rd = directText === '3rd' || fullText === '3rd'
+                // Match patterns like "· 1st", "· 2nd", "· 3rd" or just "1st", "2nd", "3rd"
+                // The degree indicator is typically a short text element
+                const degreeMatch = fullText.match(/^·?\s*(1st|2nd|3rd)\s*$/)
                 
-                // Also check for "· 1st" pattern (with separator)
-                const hasDegreeSeparator = fullText.match(/^·?\s*(1st|2nd|3rd)\s*$/)
-                
-                if (isExact1st || (hasDegreeSeparator && hasDegreeSeparator[1] === '1st')) {
-                  // Validate it's a small UI element, not a large text block
-                  if (fullText.length < 15) {
+                if (degreeMatch) {
+                  const degree = degreeMatch[1]
+                  console.log("Found degree indicator:", fullText, "-> degree:", degree)
+                  
+                  if (degree === '1st') {
                     isFirstDegreeConnection = true
-                    console.log("Found 1st degree connection - exact match:", fullText)
-                    break
+                    console.log("Confirmed 1st degree connection")
+                  } else {
+                    // Explicitly NOT 1st degree
+                    isFirstDegreeConnection = false
+                    console.log("Confirmed NOT 1st degree connection (found:", degree, ")")
                   }
-                }
-                
-                // If we find 2nd or 3rd, we know they're NOT a 1st degree connection
-                if (isExact2nd || isExact3rd || (hasDegreeSeparator && hasDegreeSeparator[1] !== '1st')) {
-                  console.log("Found non-1st degree indicator:", fullText)
-                  isFirstDegreeConnection = false
                   break
                 }
               }
@@ -184,6 +172,85 @@ export class ProfileExtractor {
           let role = ""
           let company = ""
 
+          // Strategy 1: Extract from topcard headline (most reliable for current role)
+          // LinkedIn shows headline like "Co-Founder | Head of AI @ Kiwi AI | PhD (Quantum Computation, USC)"
+          // And company/education like "Kiwi AI · University of Southern California"
+          try {
+            const topcardContainer = document.querySelector(
+              '[data-sdui-component*="profileTopCardSection"], section[componentkey*="RvgTopcard"], section[componentkey*="Topcard"]'
+            )
+            
+            if (topcardContainer) {
+              console.log("Found topcard container for role/company extraction")
+              
+              // Get all <p> elements in the topcard - they contain headline and company info
+              const pElements = topcardContainer.querySelectorAll('p')
+              
+              for (const p of pElements) {
+                const text = p.textContent?.trim() || ''
+                
+                // Skip degree indicators and very short text
+                if (text.match(/^·?\s*(1st|2nd|3rd)\s*$/) || text.length < 5) {
+                  continue
+                }
+                
+                // Skip location patterns (e.g., "Los Angeles, California, United States")
+                if (text.match(/,\s*(United States|USA|UK|Canada|Australia|Germany|France|India)/i)) {
+                  continue
+                }
+                
+                // Headline pattern: contains job titles, often with | or @ separators
+                // e.g., "Co-Founder | Head of AI @ Kiwi AI | PhD (Quantum Computation, USC)"
+                if (!role && (text.includes('|') || text.includes('@') || text.includes(' at '))) {
+                  // Extract the first role from the headline
+                  const parts = text.split(/\s*[|]\s*/)
+                  if (parts.length > 0) {
+                    // First part is usually the primary role
+                    let primaryRole = parts[0].trim()
+                    
+                    // If it contains @, split and take the role part
+                    if (primaryRole.includes('@')) {
+                      const atParts = primaryRole.split('@')
+                      primaryRole = atParts[0].trim()
+                      // The part after @ might be the company
+                      if (!company && atParts[1]) {
+                        company = atParts[1].trim()
+                      }
+                    }
+                    
+                    if (primaryRole && primaryRole.length > 2) {
+                      role = primaryRole
+                      console.log("Extracted role from headline:", role)
+                    }
+                  }
+                  
+                  // Try to extract company from @ pattern if not found
+                  if (!company) {
+                    const atMatch = text.match(/@\s*([^|]+)/)
+                    if (atMatch) {
+                      company = atMatch[1].trim()
+                      console.log("Extracted company from @ pattern:", company)
+                    }
+                  }
+                }
+                
+                // Company/education line pattern: "Company · University" or just "Company"
+                // This line typically comes after the headline
+                if (!company && text.includes('·') && !text.includes('@') && !text.includes('|')) {
+                  // First part before · is usually the company
+                  const companyPart = text.split('·')[0].trim()
+                  if (companyPart && companyPart.length > 2) {
+                    company = companyPart
+                    console.log("Extracted company from company line:", company)
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.log("Error extracting from topcard:", e)
+          }
+
+          // Strategy 2: Fall back to Experience section if topcard didn't yield results
           // Find Experience section - updated for current LinkedIn DOM
           let experienceSection = null
           
