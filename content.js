@@ -128,101 +128,58 @@ class LinkedInProfileDetector {
   listenForConnectionNotes() {
     const chrome = window.chrome
     
-    document.body.addEventListener("click", async (event) => {
-      // Find the button that was clicked
+    // Track the last seen note value - updated whenever textarea changes
+    let lastNoteValue = ""
+    
+    // Listen for input changes on any textarea that appears (for the invite modal)
+    document.body.addEventListener("input", (event) => {
+      if (event.target.tagName === 'TEXTAREA') {
+        const textarea = event.target
+        // Check if this is the invite note textarea
+        if (textarea.id === 'custom-message' || 
+            textarea.name === 'message' ||
+            textarea.className.includes('connect-button-send-invite')) {
+          lastNoteValue = textarea.value.trim()
+          console.log("LinkedIn Tracker: Note value updated:", lastNoteValue.substring(0, 30) + "...")
+        }
+      }
+    }, true)
+    
+    // Use mousedown to capture BEFORE the modal closes
+    document.body.addEventListener("mousedown", async (event) => {
       const clickedButton = event.target.closest('button')
       if (!clickedButton) return
       
-      // Check if this is a send/connect button by multiple criteria
       const ariaLabel = (clickedButton.getAttribute('aria-label') || '').toLowerCase()
       const buttonText = (clickedButton.textContent || '').toLowerCase().trim()
       
       const isSendButton = 
         ariaLabel.includes('send invitation') ||
         ariaLabel.includes('send now') ||
-        (ariaLabel.includes('send') && !ariaLabel.includes('message')) ||
         buttonText === 'send' ||
         buttonText === 'send invitation' ||
         buttonText === 'send now'
       
       if (!isSendButton) return
 
-      console.log("LinkedIn Tracker: Send button clicked, looking for connection note...")
+      console.log("LinkedIn Tracker: Send button mousedown, capturing note...")
 
-      // Strategy 1: Find the send-invite modal specifically (most reliable)
-      // LinkedIn uses data-test-modal-id="send-invite-modal" or aria-labelledby="send-invite-modal"
-      let modal = document.querySelector(
-        '[data-test-modal-id="send-invite-modal"], ' +
-        '[aria-labelledby="send-invite-modal"], ' +
-        'div[data-test-modal-container][data-test-modal-id="send-invite-modal"]'
+      // Try to get the note directly from textarea first
+      let noteText = ""
+      const textarea = document.querySelector(
+        'textarea#custom-message, ' +
+        'textarea[name="message"], ' +
+        'textarea.connect-button-send-invite__custom-message'
       )
       
-      // Strategy 2: Find modal by looking up from the clicked button
-      if (!modal) {
-        modal = event.target.closest(
-          '[data-test-modal-id="send-invite-modal"], ' +
-          'div[role="dialog"][aria-labelledby*="invite"], ' +
-          'div[role="dialog"].artdeco-modal, ' +
-          '.artdeco-modal-overlay'
-        )
+      if (textarea) {
+        noteText = textarea.value.trim()
+        console.log("LinkedIn Tracker: Got note directly from textarea")
+      } else if (lastNoteValue) {
+        // Fall back to the last tracked value
+        noteText = lastNoteValue
+        console.log("LinkedIn Tracker: Using last tracked note value")
       }
-      
-      // Strategy 3: Find any open dialog that might contain the invite form
-      if (!modal) {
-        modal = document.querySelector(
-          'div[role="dialog"]:not([aria-hidden="true"]), ' +
-          '.artdeco-modal:not([aria-hidden="true"])'
-        )
-      }
-      
-      if (!modal) {
-        console.log("LinkedIn Tracker: Could not find invite modal.")
-        return
-      }
-      
-      console.log("LinkedIn Tracker: Found modal, searching for textarea...")
-
-      // Find the message textarea - prioritize specific selectors
-      // From DOM: id="custom-message", name="message", class contains "connect-button-send-invite__custom-message"
-      const textareaSelectors = [
-        'textarea#custom-message',
-        'textarea[name="message"]',
-        'textarea.connect-button-send-invite__custom-message',
-        'textarea[class*="connect-button-send-invite"]',
-        'textarea[class*="custom-message"]',
-        'textarea[id*="custom-message"]',
-        'textarea[placeholder*="We know each other"]',
-        'textarea'  // Last resort: any textarea in the modal
-      ]
-      
-      let messageTextarea = null
-      for (const selector of textareaSelectors) {
-        try {
-          messageTextarea = modal.querySelector(selector)
-          if (messageTextarea && messageTextarea.value !== undefined) {
-            console.log("LinkedIn Tracker: Found textarea with selector:", selector)
-            break
-          }
-        } catch (e) {
-          // Skip invalid selectors
-        }
-      }
-      
-      // Also try finding textarea in the entire document if modal search failed
-      // (sometimes the modal structure is tricky)
-      if (!messageTextarea) {
-        for (const selector of textareaSelectors.slice(0, -1)) { // Skip generic 'textarea'
-          try {
-            messageTextarea = document.querySelector(selector)
-            if (messageTextarea && messageTextarea.value !== undefined) {
-              console.log("LinkedIn Tracker: Found textarea in document with selector:", selector)
-              break
-            }
-          } catch (e) {}
-        }
-      }
-      
-      const noteText = messageTextarea ? messageTextarea.value.trim() : ""
 
       if (noteText) {
         console.log("LinkedIn Tracker: Found connection note:", noteText.substring(0, 50) + "...")
@@ -231,12 +188,14 @@ class LinkedInProfileDetector {
 
         try {
           await chrome.storage.local.set({ [storageKey]: noteText })
-          console.log(`LinkedIn Tracker: Note saved to temporary storage for ${profileUrl}`)
+          console.log(`LinkedIn Tracker: Note saved to storage for ${profileUrl}`)
+          // Clear the tracked value after saving
+          lastNoteValue = ""
         } catch (error) {
           console.error("LinkedIn Tracker: Error saving note to storage:", error)
         }
       } else {
-        console.log("LinkedIn Tracker: No note text found in textarea (may be empty or not present).")
+        console.log("LinkedIn Tracker: No note text found.")
       }
     })
   }
