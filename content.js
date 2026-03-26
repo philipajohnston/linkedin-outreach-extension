@@ -126,22 +126,35 @@ class LinkedInProfileDetector {
   }
 
   listenForConnectionNotes() {
+    const chrome = window.chrome
+    
     document.body.addEventListener("click", async (event) => {
-      // Find the button that was clicked, even if the click was on an inner element
-      const sendButton = event.target.closest('button[aria-label*="Send invitation"], button[aria-label*="Send now"]')
-      if (!sendButton) return
+      // Find the button that was clicked - expanded selectors for current LinkedIn
+      const sendButton = event.target.closest(
+        'button[aria-label*="Send invitation"], button[aria-label*="Send now"], button[aria-label*="Send"], button[aria-label*="send"]'
+      )
+      
+      // Also check if this is a send button by its text content
+      const clickedButton = event.target.closest('button')
+      const isSendButton = sendButton || (clickedButton && 
+        (clickedButton.textContent.toLowerCase().includes('send') || 
+         clickedButton.textContent.toLowerCase().includes('connect')))
+      
+      if (!isSendButton) return
 
-      console.log("LinkedIn Tracker: Send invitation button clicked.")
+      console.log("LinkedIn Tracker: Potential send/connect button clicked.")
 
-      // Find the modal this button belongs to
-      const modal = sendButton.closest('div[role="dialog"]')
+      // Find the modal - try multiple selectors for current LinkedIn
+      const modal = event.target.closest('div[role="dialog"], .artdeco-modal, .send-invite, [data-test-modal]')
       if (!modal) {
         console.log("LinkedIn Tracker: Could not find parent modal for send button.")
         return
       }
 
-      // Find the message textarea within that modal
-      const messageTextarea = modal.querySelector('textarea[name="message"], textarea#custom-message')
+      // Find the message textarea within that modal - expanded selectors
+      const messageTextarea = modal.querySelector(
+        'textarea[name="message"], textarea#custom-message, textarea.connect-button-send-invite__custom-message, textarea[id*="message"], textarea'
+      )
       const noteText = messageTextarea ? messageTextarea.value.trim() : ""
 
       if (noteText) {
@@ -149,13 +162,14 @@ class LinkedInProfileDetector {
         const profileUrl = window.location.href.split("?")[0].split("#")[0]
         const storageKey = `connectionNote_${profileUrl}`
 
-        const chrome = window.chrome // Declare the chrome variable
         try {
           await chrome.storage.local.set({ [storageKey]: noteText })
           console.log(`LinkedIn Tracker: Note saved to temporary storage for ${profileUrl}`)
         } catch (error) {
           console.error("LinkedIn Tracker: Error saving note to storage:", error)
         }
+      } else {
+        console.log("LinkedIn Tracker: No note text found in modal textarea.")
       }
     })
   }

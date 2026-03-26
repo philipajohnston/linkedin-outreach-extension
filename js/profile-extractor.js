@@ -13,22 +13,40 @@ export class ProfileExtractor {
         function: () => {
           console.log("Starting profile extraction with connection status detection...")
 
-          // Extract name
+          // Extract name - updated selectors for current LinkedIn DOM
           const nameSelectors = [
             "h1.text-heading-xlarge",
             ".pv-text-details__left-panel h1",
             'h1[data-anonymize="person-name"]',
-            "main h1",
+            "main section h1",
             ".pv-top-card--list h1",
             "h1[slot='title']",
+            // Additional selectors for current LinkedIn layout
+            ".artdeco-entity-lockup__title h1",
+            "section.artdeco-card h1",
+            ".scaffold-layout__main h1",
+            "h1.inline",
           ]
           let name = ""
           for (const selector of nameSelectors) {
-            const element = document.querySelector(selector)
-            if (element && element.textContent.trim()) {
-              name = element.textContent.trim()
-              console.log("Found name:", name)
-              break
+            try {
+              const element = document.querySelector(selector)
+              if (element && element.textContent.trim()) {
+                name = element.textContent.trim()
+                console.log("Found name with selector:", selector, "Name:", name)
+                break
+              }
+            } catch (e) {
+              // Skip invalid selectors
+            }
+          }
+          
+          // Fallback: find any h1 in the main content area
+          if (!name) {
+            const mainH1 = document.querySelector("main h1") || document.querySelector("section h1")
+            if (mainH1 && mainH1.textContent.trim()) {
+              name = mainH1.textContent.trim()
+              console.log("Found name via fallback h1:", name)
             }
           }
 
@@ -62,6 +80,7 @@ export class ProfileExtractor {
             if (headerContainer) {
               // Look for connection degree indicators within the header
               // These are typically small text elements that contain "1st", "2nd", "3rd"
+              // Valid CSS selectors only - no jQuery :contains()
               const degreeSelectors = [
                 ".dist-value",
                 '[class*="dist"]',
@@ -83,20 +102,7 @@ export class ProfileExtractor {
                   }
                   if (isFirstDegreeConnection) break
                 } catch (e) {
-                  // Skip invalid selectors
-                }
-              }
-              
-              // Search all spans in header for "1st" text content
-              if (!isFirstDegreeConnection) {
-                const allSpans = headerContainer.querySelectorAll("span")
-                for (const span of allSpans) {
-                  const text = span.textContent?.trim() || ""
-                  if (text === "1st" || text.match(/^1st$/)) {
-                    isFirstDegreeConnection = true
-                    console.log("Found 1st degree via span search:", text)
-                    break
-                  }
+                  // Skip invalid selectors silently
                 }
               }
 
@@ -169,36 +175,45 @@ export class ProfileExtractor {
           let role = ""
           let company = ""
 
-          // Find Experience section (existing logic)
+          // Find Experience section - updated for current LinkedIn DOM
           let experienceSection = null
-          const sectionHeadings = document.querySelectorAll(
-            "h2#experience, section[aria-labelledby='experience'] h2, div[id='experience'] ~ .pvs-header__container h2, section[id='experience'] h2",
-          )
-          for (const heading of sectionHeadings) {
-            const headingText = heading.textContent.trim().toLowerCase()
-            if (headingText.includes("experience")) {
-              experienceSection = heading.closest("section, div.artdeco-card")
-              if (experienceSection) {
-                console.log("Found experience section container:", experienceSection.className)
+          
+          // Try multiple approaches to find experience section
+          const experienceSectionSelectors = [
+            '#experience',
+            'section[id="experience"]',
+            'div[id="experience"]',
+            '[data-section="experience"]',
+          ]
+          
+          for (const selector of experienceSectionSelectors) {
+            try {
+              const section = document.querySelector(selector)
+              if (section) {
+                experienceSection = section.closest("section") || section
+                console.log("Found experience section via ID selector:", selector)
                 break
               }
-            }
+            } catch (e) {}
           }
+          
+          // Fallback: look for section with h2 containing "Experience"
           if (!experienceSection) {
-            const allSections = document.querySelectorAll("section")
+            const allSections = document.querySelectorAll("section, div.artdeco-card, div.pvs-list__container")
             for (const section of allSections) {
-              const h2 = section.querySelector("h2")
+              const h2 = section.querySelector("h2, .pvs-header__title")
               if (h2 && h2.textContent.toLowerCase().includes("experience")) {
                 experienceSection = section
-                console.log("Fallback: Found experience section by h2 content:", experienceSection.className)
+                console.log("Found experience section by h2 content:", experienceSection.className)
                 break
               }
             }
           }
 
           if (experienceSection) {
+            // Updated selectors for current LinkedIn experience items
             const experienceListItems = experienceSection.querySelectorAll(
-              "ul > li.pvs-list__item--line-separated, ul > li.artdeco-list__item, div.pvs-list > ul > li",
+              "li.pvs-list__paged-list-item, li.artdeco-list__item, ul > li.pvs-list__item--line-separated, div.pvs-list > ul > li, li[class*='pvs-list']",
             )
             console.log(`Found ${experienceListItems.length} potential experience list items.`)
 
