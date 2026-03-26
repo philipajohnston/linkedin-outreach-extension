@@ -14,14 +14,22 @@ export class ProfileExtractor {
           console.log("Starting profile extraction with connection status detection...")
 
           // Extract name - updated selectors for current LinkedIn DOM
+          // Note: LinkedIn's current SDUI layout uses h2 for profile names, not h1
           const nameSelectors = [
+            // Current LinkedIn SDUI layout - h2 inside RvgTopcard section
+            'section[componentkey*="RvgTopcard"] h2',
+            '[componentkey*="RvgTopcard"] h2',
+            'section[componentkey*="Topcard"] h2',
+            // Profile page main area with h2
+            '[data-sdui-screen*="profile.Profile"] section h2',
+            'main[data-sdui-screen*="Profile"] section h2',
+            // Legacy h1 selectors (older LinkedIn versions)
             "h1.text-heading-xlarge",
             ".pv-text-details__left-panel h1",
             'h1[data-anonymize="person-name"]',
             "main section h1",
             ".pv-top-card--list h1",
             "h1[slot='title']",
-            // Additional selectors for current LinkedIn layout
             ".artdeco-entity-lockup__title h1",
             "section.artdeco-card h1",
             ".scaffold-layout__main h1",
@@ -41,7 +49,33 @@ export class ProfileExtractor {
             }
           }
           
-          // Fallback: find any h1 in the main content area
+          // Fallback: find h2 in the main profile area first (current LinkedIn layout)
+          if (!name) {
+            // Try h2 in the first section within main (profile topcard area)
+            const profileMain = document.querySelector('main[data-sdui-screen*="Profile"], div[data-sdui-screen*="Profile"]')
+            if (profileMain) {
+              const firstSectionH2 = profileMain.querySelector('section:first-of-type h2, section h2')
+              if (firstSectionH2 && firstSectionH2.textContent.trim()) {
+                name = firstSectionH2.textContent.trim()
+                console.log("Found name via profile main h2:", name)
+              }
+            }
+          }
+          
+          // Secondary fallback: any h2 in the main content that looks like a name
+          if (!name) {
+            const mainH2 = document.querySelector("main section h2")
+            if (mainH2 && mainH2.textContent.trim()) {
+              const h2Text = mainH2.textContent.trim()
+              // Basic validation: names typically don't contain certain patterns
+              if (!h2Text.match(/experience|education|about|skills|activity|interests/i)) {
+                name = h2Text
+                console.log("Found name via fallback main h2:", name)
+              }
+            }
+          }
+          
+          // Final fallback: h1 search
           if (!name) {
             const mainH1 = document.querySelector("main h1") || document.querySelector("section h1")
             if (mainH1 && mainH1.textContent.trim()) {
