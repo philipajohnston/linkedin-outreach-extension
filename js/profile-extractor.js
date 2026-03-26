@@ -172,90 +172,16 @@ export class ProfileExtractor {
           let role = ""
           let company = ""
 
-          // Strategy 1: Extract from topcard headline (most reliable for current role)
-          // LinkedIn shows headline like "Co-Founder | Head of AI @ Kiwi AI | PhD (Quantum Computation, USC)"
-          // And company/education like "Kiwi AI · University of Southern California"
-          try {
-            const topcardContainer = document.querySelector(
-              '[data-sdui-component*="profileTopCardSection"], section[componentkey*="RvgTopcard"], section[componentkey*="Topcard"]'
-            )
-            
-            if (topcardContainer) {
-              console.log("Found topcard container for role/company extraction")
-              
-              // Get all <p> elements in the topcard - they contain headline and company info
-              const pElements = topcardContainer.querySelectorAll('p')
-              
-              for (const p of pElements) {
-                const text = p.textContent?.trim() || ''
-                
-                // Skip degree indicators and very short text
-                if (text.match(/^·?\s*(1st|2nd|3rd)\s*$/) || text.length < 5) {
-                  continue
-                }
-                
-                // Skip location patterns (e.g., "Los Angeles, California, United States")
-                if (text.match(/,\s*(United States|USA|UK|Canada|Australia|Germany|France|India)/i)) {
-                  continue
-                }
-                
-                // Headline pattern: contains job titles, often with | or @ separators
-                // e.g., "Co-Founder | Head of AI @ Kiwi AI | PhD (Quantum Computation, USC)"
-                if (!role && (text.includes('|') || text.includes('@') || text.includes(' at '))) {
-                  // Extract the first role from the headline
-                  const parts = text.split(/\s*[|]\s*/)
-                  if (parts.length > 0) {
-                    // First part is usually the primary role
-                    let primaryRole = parts[0].trim()
-                    
-                    // If it contains @, split and take the role part
-                    if (primaryRole.includes('@')) {
-                      const atParts = primaryRole.split('@')
-                      primaryRole = atParts[0].trim()
-                      // The part after @ might be the company
-                      if (!company && atParts[1]) {
-                        company = atParts[1].trim()
-                      }
-                    }
-                    
-                    if (primaryRole && primaryRole.length > 2) {
-                      role = primaryRole
-                      console.log("Extracted role from headline:", role)
-                    }
-                  }
-                  
-                  // Try to extract company from @ pattern if not found
-                  if (!company) {
-                    const atMatch = text.match(/@\s*([^|]+)/)
-                    if (atMatch) {
-                      company = atMatch[1].trim()
-                      console.log("Extracted company from @ pattern:", company)
-                    }
-                  }
-                }
-                
-                // Company/education line pattern: "Company · University" or just "Company"
-                // This line typically comes after the headline
-                if (!company && text.includes('·') && !text.includes('@') && !text.includes('|')) {
-                  // First part before · is usually the company
-                  const companyPart = text.split('·')[0].trim()
-                  if (companyPart && companyPart.length > 2) {
-                    company = companyPart
-                    console.log("Extracted company from company line:", company)
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            console.log("Error extracting from topcard:", e)
-          }
-
-          // Strategy 2: Fall back to Experience section if topcard didn't yield results
-          // Find Experience section - updated for current LinkedIn DOM
+          // Strategy 1: Extract from Experience section (most reliable for structured data)
+          // LinkedIn SDUI uses section with componentkey containing "ExperienceTopLevelSection"
+          // Role/Company are in <p> elements within entity-collection-item divs
           let experienceSection = null
           
-          // Try multiple approaches to find experience section
+          // Try SDUI componentkey selectors first (current LinkedIn layout)
           const experienceSectionSelectors = [
+            'section[componentkey*="ExperienceTopLevelSection"]',
+            '[componentkey*="ExperienceTopLevelSection"]',
+            'section[componentkey*="Experience"]',
             '#experience',
             'section[id="experience"]',
             'div[id="experience"]',
@@ -267,7 +193,7 @@ export class ProfileExtractor {
               const section = document.querySelector(selector)
               if (section) {
                 experienceSection = section.closest("section") || section
-                console.log("Found experience section via ID selector:", selector)
+                console.log("Found experience section via selector:", selector)
                 break
               }
             } catch (e) {}
@@ -287,140 +213,266 @@ export class ProfileExtractor {
           }
 
           if (experienceSection) {
-            // Updated selectors for current LinkedIn experience items
-            const experienceListItems = experienceSection.querySelectorAll(
-              "li.pvs-list__paged-list-item, li.artdeco-list__item, ul > li.pvs-list__item--line-separated, div.pvs-list > ul > li, li[class*='pvs-list']",
+            console.log("Processing experience section...")
+            
+            // Current LinkedIn SDUI: Look for entity-collection-item divs containing <p> elements
+            // Role is in first <p>, Company in second <p> (format: "Company · Full-time")
+            const entityItems = experienceSection.querySelectorAll(
+              '[componentkey*="entity-collection-item"], div[class*="entity-collection"]'
             )
-            console.log(`Found ${experienceListItems.length} potential experience list items.`)
-
-            for (const listItem of experienceListItems) {
-              console.log("Processing list item:", listItem.innerText.substring(0, 100).replace(/\n/g, " ") + "...")
-
-              const itemText = listItem.innerText || ""
-              const isCurrent = itemText.toLowerCase().includes("present")
-
-              if (!isCurrent) {
-                console.log("Skipping non-current item.")
-                continue
-              }
-
-              let itemRole = ""
-              let itemCompany = ""
-
-              const roleCandidateSpans = listItem.querySelectorAll(
-                'div.display-flex.flex-column.align-self-center.flex-grow-1 > div > div > span[aria-hidden="true"]',
-              )
-              if (roleCandidateSpans.length > 0) {
-                const firstSpanText = roleCandidateSpans[0].textContent.trim()
-                if (
-                  firstSpanText &&
-                  firstSpanText.length > 1 &&
-                  !firstSpanText.match(/(\d{4}\s*-\s*\d{4})|(present)|(·)/i)
-                ) {
-                  if (firstSpanText !== "FJ Labs" || !itemText.includes("Partner")) {
-                    itemRole = firstSpanText
-                    console.log("Potential role from primary span:", itemRole)
+            
+            if (entityItems.length > 0) {
+              console.log(`Found ${entityItems.length} entity items in experience section`)
+              
+              for (const item of entityItems) {
+                const pElements = item.querySelectorAll('p')
+                const itemText = item.innerText || ""
+                const isCurrent = itemText.toLowerCase().includes("present")
+                
+                if (!isCurrent) {
+                  console.log("Skipping non-current experience item")
+                  continue
+                }
+                
+                console.log(`Processing entity item with ${pElements.length} <p> elements`)
+                
+                let itemRole = ""
+                let itemCompany = ""
+                
+                for (const p of pElements) {
+                  const text = p.textContent?.trim() || ''
+                  
+                  // Skip empty, dates, and duration texts
+                  if (!text || text.length < 2 || text.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d)/i)) {
+                    continue
+                  }
+                  
+                  // Role pattern: "Co-founder | Head of AI" or just "Software Engineer"
+                  if (!itemRole && !text.includes('·')) {
+                    itemRole = text
+                    console.log("Found role from <p>:", itemRole)
+                  }
+                  // Company pattern: "Kiwi AI · Full-time" 
+                  else if (!itemCompany && text.includes('·')) {
+                    itemCompany = text.split('·')[0].trim()
+                    console.log("Found company from <p>:", itemCompany)
                   }
                 }
-              }
-
-              const companyCandidateSpans = listItem.querySelectorAll(
-                'div.display-flex.flex-column.align-self-center.flex-grow-1 span.t-14.t-normal[aria-hidden="true"]',
-              )
-              if (companyCandidateSpans.length > 0) {
-                let companyText = companyCandidateSpans[0].textContent.trim()
-                if (companyText) {
-                  if (companyText.includes("•")) {
-                    companyText = companyText.split("•")[0].trim()
-                  }
-                  companyText = companyText
-                    .replace(/\s*(Permanent Full-time|Full-time|Part-time|Contract)\s*$/i, "")
-                    .trim()
-
-                  if (companyText.length > 1 && companyText.toLowerCase() !== itemRole.toLowerCase()) {
-                    itemCompany = companyText
-                    console.log("Potential company from secondary span (cleaned):", itemCompany)
-                  }
+                
+                if (itemRole && itemCompany) {
+                  role = itemRole
+                  company = itemCompany
+                  console.log("SUCCESS from SDUI experience: Role:", role, "Company:", company)
+                  break
                 }
               }
+            }
+            
+            // Fallback to legacy list item extraction if SDUI approach didn't work
+            if (!role || !company) {
+              const experienceListItems = experienceSection.querySelectorAll(
+                "li.pvs-list__paged-list-item, li.artdeco-list__item, ul > li.pvs-list__item--line-separated, div.pvs-list > ul > li, li[class*='pvs-list']",
+              )
+              console.log(`Fallback: Found ${experienceListItems.length} legacy experience list items.`)
 
-              if (itemText.includes("Partner") && itemText.includes("FJ Labs")) {
-                itemRole = "Partner"
-                itemCompany = "FJ Labs"
-                console.log("Applied specific pattern: Partner at FJ Labs")
-              } else if (itemText.includes("Investor") && itemText.includes("FJ Labs")) {
-                itemRole = "Investor"
-                itemCompany = "FJ Labs"
-                console.log("Applied specific pattern: Investor at FJ Labs")
-              }
+              for (const listItem of experienceListItems) {
+                console.log("Processing list item:", listItem.innerText.substring(0, 100).replace(/\n/g, " ") + "...")
 
-              if ((!itemRole || !itemCompany) && itemRole !== "FJ Labs") {
-                console.log("Role/Company still missing or incomplete, trying general extraction within item...")
-                const allSpansInItem = listItem.querySelectorAll('span[aria-hidden="true"]')
-                const relevantTexts = []
-                allSpansInItem.forEach((span) => {
-                  const text = span.textContent.trim()
+                const itemText = listItem.innerText || ""
+                const isCurrent = itemText.toLowerCase().includes("present")
+
+                if (!isCurrent) {
+                  console.log("Skipping non-current item.")
+                  continue
+                }
+
+                let itemRole = ""
+                let itemCompany = ""
+
+                const roleCandidateSpans = listItem.querySelectorAll(
+                  'div.display-flex.flex-column.align-self-center.flex-grow-1 > div > div > span[aria-hidden="true"]',
+                )
+                if (roleCandidateSpans.length > 0) {
+                  const firstSpanText = roleCandidateSpans[0].textContent.trim()
                   if (
-                    text &&
-                    text.length > 1 &&
-                    !text.match(/(\d{4}\s*-\s*\d{4})|(present)|(·)|(full-time)|(part-time)|(contract)|yrs|mos/i) &&
-                    !text.includes(",")
+                    firstSpanText &&
+                    firstSpanText.length > 1 &&
+                    !firstSpanText.match(/(\d{4}\s*-\s*\d{4})|(present)|(·)/i)
                   ) {
-                    relevantTexts.push(text)
-                  }
-                })
-                console.log("Relevant texts from all spans in item:", relevantTexts)
-
-                if (relevantTexts.length > 0 && !itemRole) {
-                  itemRole = relevantTexts[0]
-                  console.log("General extraction - Role:", itemRole)
-                }
-                if (relevantTexts.length > 1 && !itemCompany) {
-                  let potentialCompany = relevantTexts.find((t) => t.toLowerCase() !== itemRole.toLowerCase())
-                  if (potentialCompany) {
-                    if (potentialCompany.includes("•")) {
-                      potentialCompany = potentialCompany.split("•")[0].trim()
+                    if (firstSpanText !== "FJ Labs" || !itemText.includes("Partner")) {
+                      itemRole = firstSpanText
+                      console.log("Potential role from primary span:", itemRole)
                     }
-                    potentialCompany = potentialCompany
+                  }
+                }
+
+                const companyCandidateSpans = listItem.querySelectorAll(
+                  'div.display-flex.flex-column.align-self-center.flex-grow-1 span.t-14.t-normal[aria-hidden="true"]',
+                )
+                if (companyCandidateSpans.length > 0) {
+                  let companyText = companyCandidateSpans[0].textContent.trim()
+                  if (companyText) {
+                    if (companyText.includes("•")) {
+                      companyText = companyText.split("•")[0].trim()
+                    }
+                    companyText = companyText
                       .replace(/\s*(Permanent Full-time|Full-time|Part-time|Contract)\s*$/i, "")
                       .trim()
-                    itemCompany = potentialCompany
-                    console.log("General extraction - Company (cleaned):", itemCompany)
+
+                    if (companyText.length > 1 && companyText.toLowerCase() !== itemRole.toLowerCase()) {
+                      itemCompany = companyText
+                      console.log("Potential company from secondary span (cleaned):", itemCompany)
+                    }
                   }
                 }
-              }
 
-              if (itemRole && itemCompany && itemRole.toLowerCase() !== itemCompany.toLowerCase()) {
-                role = itemRole
-                company = itemCompany
-                console.log("SUCCESS: Role:", role, "Company:", company)
-                break
-              } else if (itemRole && !itemCompany) {
-                const companyLinkElement = listItem.querySelector('a[href*="/company/"] span[aria-hidden="true"]')
-                if (companyLinkElement && companyLinkElement.textContent.trim().length > 1) {
-                  let linkedCompany = companyLinkElement.textContent.trim()
-                  if (linkedCompany.includes("•")) {
-                    linkedCompany = linkedCompany.split("•")[0].trim()
+                if (itemText.includes("Partner") && itemText.includes("FJ Labs")) {
+                  itemRole = "Partner"
+                  itemCompany = "FJ Labs"
+                  console.log("Applied specific pattern: Partner at FJ Labs")
+                } else if (itemText.includes("Investor") && itemText.includes("FJ Labs")) {
+                  itemRole = "Investor"
+                  itemCompany = "FJ Labs"
+                  console.log("Applied specific pattern: Investor at FJ Labs")
+                }
+
+                if ((!itemRole || !itemCompany) && itemRole !== "FJ Labs") {
+                  console.log("Role/Company still missing or incomplete, trying general extraction within item...")
+                  const allSpansInItem = listItem.querySelectorAll('span[aria-hidden="true"]')
+                  const relevantTexts = []
+                  allSpansInItem.forEach((span) => {
+                    const text = span.textContent.trim()
+                    if (
+                      text &&
+                      text.length > 1 &&
+                      !text.match(/(\d{4}\s*-\s*\d{4})|(present)|(·)|(full-time)|(part-time)|(contract)|yrs|mos/i) &&
+                      !text.includes(",")
+                    ) {
+                      relevantTexts.push(text)
+                    }
+                  })
+                  console.log("Relevant texts from all spans in item:", relevantTexts)
+
+                  if (relevantTexts.length > 0 && !itemRole) {
+                    itemRole = relevantTexts[0]
+                    console.log("General extraction - Role:", itemRole)
                   }
-                  linkedCompany = linkedCompany
-                    .replace(/\s*(Permanent Full-time|Full-time|Part-time|Contract)\s*$/i, "")
-                    .trim()
+                  if (relevantTexts.length > 1 && !itemCompany) {
+                    let potentialCompany = relevantTexts.find((t) => t.toLowerCase() !== itemRole.toLowerCase())
+                    if (potentialCompany) {
+                      if (potentialCompany.includes("•")) {
+                        potentialCompany = potentialCompany.split("•")[0].trim()
+                      }
+                      potentialCompany = potentialCompany
+                        .replace(/\s*(Permanent Full-time|Full-time|Part-time|Contract)\s*$/i, "")
+                        .trim()
+                      itemCompany = potentialCompany
+                      console.log("General extraction - Company (cleaned):", itemCompany)
+                    }
+                  }
+                }
 
-                  if (itemRole.toLowerCase() !== linkedCompany.toLowerCase()) {
+                if (itemRole && itemCompany && itemRole.toLowerCase() !== itemCompany.toLowerCase()) {
+                  role = itemRole
+                  company = itemCompany
+                  console.log("SUCCESS: Role:", role, "Company:", company)
+                  break
+                } else if (itemRole && !itemCompany) {
+                  const companyLinkElement = listItem.querySelector('a[href*="/company/"] span[aria-hidden="true"]')
+                  if (companyLinkElement && companyLinkElement.textContent.trim().length > 1) {
+                    let linkedCompany = companyLinkElement.textContent.trim()
+                    if (linkedCompany.includes("•")) {
+                      linkedCompany = linkedCompany.split("•")[0].trim()
+                    }
+                    linkedCompany = linkedCompany
+                      .replace(/\s*(Permanent Full-time|Full-time|Part-time|Contract)\s*$/i, "")
+                      .trim()
+
+                    if (itemRole.toLowerCase() !== linkedCompany.toLowerCase()) {
+                      role = itemRole
+                      company = linkedCompany
+                      console.log("SUCCESS (role + linked company): Role:", role, "Company:", company)
+                      break
+                    }
+                  } else {
                     role = itemRole
-                    company = linkedCompany
-                    console.log("SUCCESS (role + linked company): Role:", role, "Company:", company)
+                    console.log("PARTIAL SUCCESS (role only): Role:", role)
                     break
                   }
-                } else {
-                  role = itemRole
-                  console.log("PARTIAL SUCCESS (role only): Role:", role)
-                  break
                 }
               }
             }
           } else {
             console.log("Experience section not found.")
+          }
+          
+          // Strategy 2: Fallback to topcard headline if Experience didn't yield results
+          if (!role || !company) {
+            try {
+              const topcardContainer = document.querySelector(
+                '[data-sdui-component*="profileTopCardSection"], section[componentkey*="RvgTopcard"], section[componentkey*="Topcard"]'
+              )
+              
+              if (topcardContainer) {
+                console.log("Fallback: Extracting from topcard headline")
+                
+                const pElements = topcardContainer.querySelectorAll('p')
+                
+                for (const p of pElements) {
+                  const text = p.textContent?.trim() || ''
+                  
+                  // Skip degree indicators and very short text
+                  if (text.match(/^·?\s*(1st|2nd|3rd)\s*$/) || text.length < 5) {
+                    continue
+                  }
+                  
+                  // Skip location patterns
+                  if (text.match(/,\s*(United States|USA|UK|Canada|Australia|Germany|France|India)/i)) {
+                    continue
+                  }
+                  
+                  // Headline pattern: contains job titles with | or @ separators
+                  if (!role && (text.includes('|') || text.includes('@') || text.includes(' at '))) {
+                    const parts = text.split(/\s*[|]\s*/)
+                    if (parts.length > 0) {
+                      let primaryRole = parts[0].trim()
+                      
+                      if (primaryRole.includes('@')) {
+                        const atParts = primaryRole.split('@')
+                        primaryRole = atParts[0].trim()
+                        if (!company && atParts[1]) {
+                          company = atParts[1].trim()
+                        }
+                      }
+                      
+                      if (primaryRole && primaryRole.length > 2) {
+                        role = primaryRole
+                        console.log("Fallback: Extracted role from headline:", role)
+                      }
+                    }
+                    
+                    if (!company) {
+                      const atMatch = text.match(/@\s*([^|]+)/)
+                      if (atMatch) {
+                        company = atMatch[1].trim()
+                        console.log("Fallback: Extracted company from @ pattern:", company)
+                      }
+                    }
+                  }
+                  
+                  // Company/education line pattern
+                  if (!company && text.includes('·') && !text.includes('@') && !text.includes('|')) {
+                    const companyPart = text.split('·')[0].trim()
+                    if (companyPart && companyPart.length > 2) {
+                      company = companyPart
+                      console.log("Fallback: Extracted company from company line:", company)
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              console.log("Error in topcard fallback extraction:", e)
+            }
           }
 
           const cleanUrl = window.location.href.split("?")[0].split("#")[0]
