@@ -129,80 +129,86 @@ class LinkedInProfileDetector {
     const chrome = window.chrome
     console.log("[v0] listenForConnectionNotes initialized")
     
-    // Store the note value whenever it changes - this is our primary capture method
     let pendingNote = ""
     
-    // Capture note value on ANY input to a textarea (use capture phase)
-    document.addEventListener("input", (event) => {
-      const target = event.target
-      if (target.tagName !== 'TEXTAREA') return
+    // Use MutationObserver to detect when the invite modal appears
+    // This is necessary because LinkedIn may render the modal in a way that 
+    // standard event delegation doesn't capture
+    const observer = new MutationObserver((mutations) => {
+      // Look for the invite modal
+      const modal = document.querySelector('[data-test-modal-id="send-invite-modal"], [aria-labelledby="send-invite-modal"]')
+      if (!modal) return
       
-      // Log ALL textareas to see what's available
-      console.log("[v0] Textarea input detected - id:", target.id, "name:", target.name, "class:", target.className)
+      // Check if we already attached listeners to this modal
+      if (modal.dataset.v0Listening) return
+      modal.dataset.v0Listening = "true"
       
-      // Check if this looks like the invite note textarea
-      const isInviteTextarea = (
-        target.id === 'custom-message' ||
-        target.name === 'message' ||
-        (target.className && target.className.includes('connect-button-send-invite'))
-      )
+      console.log("[v0] Invite modal detected, attaching listeners")
       
-      if (isInviteTextarea) {
-        pendingNote = target.value
-        console.log("[v0] Captured invite note:", pendingNote.substring(0, 50))
+      // Find the textarea in the modal
+      const textarea = modal.querySelector('textarea#custom-message, textarea[name="message"], textarea')
+      if (textarea) {
+        console.log("[v0] Found textarea in modal:", textarea.id, textarea.name)
+        
+        // Listen for input on this specific textarea
+        textarea.addEventListener("input", () => {
+          pendingNote = textarea.value
+          console.log("[v0] Note updated:", pendingNote.substring(0, 30))
+        })
+        
+        // Also capture initial value if any
+        if (textarea.value) {
+          pendingNote = textarea.value
+        }
       }
-    }, true) // Use capture phase to get events before they're consumed
+      
+      // Find the send button in the modal
+      const buttons = modal.querySelectorAll('button')
+      buttons.forEach(btn => {
+        const text = (btn.textContent || '').trim().toLowerCase()
+        const aria = (btn.getAttribute('aria-label') || '').toLowerCase()
+        
+        if (text === 'send' || text === 'send now' || aria.includes('send')) {
+          console.log("[v0] Found send button:", text || aria)
+          
+          btn.addEventListener("click", async () => {
+            console.log("[v0] Send button clicked in modal")
+            
+            // Grab the note value directly
+            let noteText = pendingNote
+            if (textarea && textarea.value) {
+              noteText = textarea.value.trim()
+            }
+            
+            if (!noteText) {
+              console.log("[v0] No note to save")
+              return
+            }
+            
+            const profileUrl = window.location.href.split("?")[0].split("#")[0]
+            const storageKey = `connectionNote_${profileUrl}`
+            
+            console.log("[v0] Saving note:", noteText.substring(0, 30), "to", storageKey)
+            
+            try {
+              await chrome.storage.local.set({ [storageKey]: noteText })
+              console.log("[v0] Note saved!")
+              pendingNote = ""
+            } catch (error) {
+              console.error("[v0] Save error:", error)
+            }
+          })
+        }
+      })
+    })
     
-    // Also listen for any button click that might be a send action
-    document.addEventListener("click", async (event) => {
-      const button = event.target.closest('button')
-      if (!button) return
-      
-      const buttonText = (button.textContent || '').trim().toLowerCase()
-      const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase()
-      
-      console.log("[v0] Button clicked - text:", buttonText, "aria:", ariaLabel)
-      
-      // Check if this is the send button
-      const isSendButton = (
-        buttonText === 'send' ||
-        buttonText === 'send now' ||
-        buttonText.startsWith('send invitation') ||
-        ariaLabel.includes('send invitation') ||
-        ariaLabel.includes('send now')
-      )
-      
-      if (!isSendButton) return
-      
-      console.log("[v0] Send button detected!")
-      
-      // Try to grab textarea value directly first (in case input event missed it)
-      let noteText = pendingNote
-      const textarea = document.querySelector('textarea#custom-message, textarea[name="message"]')
-      if (textarea && textarea.value) {
-        noteText = textarea.value.trim()
-        console.log("[v0] Got note from textarea directly:", noteText.substring(0, 50))
-      }
-      
-      if (!noteText) {
-        console.log("[v0] No note text to save")
-        return
-      }
-      
-      // Save to storage
-      const profileUrl = window.location.href.split("?")[0].split("#")[0]
-      const storageKey = `connectionNote_${profileUrl}`
-      
-      console.log("[v0] Saving note to storage key:", storageKey)
-      
-      try {
-        await chrome.storage.local.set({ [storageKey]: noteText })
-        console.log("[v0] Note saved successfully!")
-        pendingNote = "" // Clear after saving
-      } catch (error) {
-        console.error("[v0] Error saving note:", error)
-      }
-    }, true) // Use capture phase
+    // Start observing for modal appearance
+    observer.observe(document.body, { 
+      childList: true, 
+      subtree: true 
+    })
+    
+    console.log("[v0] MutationObserver started")
   }
 }
 
