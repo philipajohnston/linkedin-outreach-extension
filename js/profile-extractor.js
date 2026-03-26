@@ -104,53 +104,71 @@ export class ProfileExtractor {
             )
             
             if (topcardSection) {
-              console.log("Found topcard section for connection degree detection")
+              console.log("[v0] Found topcard section for connection degree detection")
               
               // LinkedIn SDUI uses <p> elements for the degree indicator (e.g., "· 2nd")
               // Look for p elements first (most reliable), then span and div
               const degreeElements = topcardSection.querySelectorAll('p, span, div')
               
+              let foundDegree = false
               for (const el of degreeElements) {
                 const fullText = el.textContent?.trim() || ''
                 
+                // Skip empty or long text (degree indicators are short)
+                if (!fullText || fullText.length > 10) continue
+                
                 // Match patterns like "· 1st", "· 2nd", "· 3rd" or just "1st", "2nd", "3rd"
-                // The degree indicator is typically a short text element
-                const degreeMatch = fullText.match(/^·?\s*(1st|2nd|3rd)\s*$/)
+                // Use flexible separator matching: middle dot (·), bullet (•), or any non-word char
+                // Also match standalone degree text
+                const degreeMatch = fullText.match(/^[\s·•\-–—]*\s*(1st|2nd|3rd)\s*$/i) || 
+                                   fullText.match(/\b(1st|2nd|3rd)\b/i)
                 
                 if (degreeMatch) {
                   const degree = degreeMatch[1]
-                  console.log("Found degree indicator:", fullText, "-> degree:", degree)
+                  console.log("[v0] Found degree indicator:", JSON.stringify(fullText), "-> degree:", degree)
                   
                   if (degree === '1st') {
                     isFirstDegreeConnection = true
-                    console.log("Confirmed 1st degree connection")
+                    console.log("[v0] Confirmed 1st degree connection")
                   } else {
                     // Explicitly NOT 1st degree
                     isFirstDegreeConnection = false
-                    console.log("Confirmed NOT 1st degree connection (found:", degree, ")")
+                    console.log("[v0] Confirmed NOT 1st degree connection (found:", degree, ")")
                   }
+                  foundDegree = true
                   break
+                }
+              }
+              
+              if (!foundDegree) {
+                console.log("[v0] No degree indicator found in topcard, checking first few p elements...")
+                const pElements = topcardSection.querySelectorAll('p')
+                for (let i = 0; i < Math.min(pElements.length, 10); i++) {
+                  console.log("[v0] p element", i, ":", JSON.stringify(pElements[i].textContent?.trim()))
                 }
               }
             }
             
             // Fallback: Search the entire main profile area for degree indicator
             if (!topcardSection) {
-              console.log("Topcard not found, searching main profile area for degree...")
+              console.log("[v0] Topcard not found, searching main profile area for degree...")
               const mainProfile = document.querySelector('main[data-sdui-screen*="Profile"], [data-sdui-screen*="Profile"]')
               if (mainProfile) {
                 const allParagraphs = mainProfile.querySelectorAll('p')
                 for (const p of allParagraphs) {
                   const text = p.textContent?.trim() || ''
-                  const degreeMatch = text.match(/^·?\s*(1st|2nd|3rd)\s*$/)
+                  if (!text || text.length > 10) continue
+                  const degreeMatch = text.match(/^[\s·•\-–—]*\s*(1st|2nd|3rd)\s*$/i) || text.match(/\b(1st|2nd|3rd)\b/i)
                   if (degreeMatch) {
                     const degree = degreeMatch[1]
-                    console.log("Found degree indicator in main area:", text, "-> degree:", degree)
+                    console.log("[v0] Found degree indicator in main area:", JSON.stringify(text), "-> degree:", degree)
                     isFirstDegreeConnection = (degree === '1st')
                     break
                   }
                 }
               }
+            } else {
+              console.log("[v0] Topcard was found, skipping main area fallback")
             }
             
             // Strategy 2: Check for "Message" button without "Connect" button
