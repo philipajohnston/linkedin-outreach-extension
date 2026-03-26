@@ -86,6 +86,8 @@ export class ProfileExtractor {
 
           // Check connection status by finding the degree indicator in profileTopCardSection
           // The degree is shown as a short <p> element with EXACT text: "· 1st", "· 2nd", or "· 3rd"
+          // CRITICAL: LinkedIn has a hidden "· 1st" element before the real degree indicator
+          // We must find ALL matches and use the LAST one (the visible one)
           let isFirstDegreeConnection = false
 
           try {
@@ -98,30 +100,30 @@ export class ProfileExtractor {
               // Get all <p> elements directly - degree indicator is always a <p>
               const pElements = topcard.querySelectorAll('p')
               
+              // Find ALL degree indicators and use the LAST one (the visible one)
+              let lastDegreeFound = null
+              
               for (const p of pElements) {
-                // IMPORTANT: Skip <p> elements inside data-display-contents="true" containers
-                // These are hidden/utility elements that may contain misleading degree text
-                if (p.closest('[data-display-contents="true"]')) {
-                  continue
-                }
-                
                 const text = (p.textContent || '').trim()
                 
                 // EXACT match only - degree indicators are exactly these strings
-                if (text === '· 1st' || text === '1st') {
-                  isFirstDegreeConnection = true
-                  console.log("Found EXACT 1st degree match:", text)
-                  break
-                } else if (text === '· 2nd' || text === '2nd' || text === '· 3rd' || text === '3rd') {
-                  isFirstDegreeConnection = false
-                  console.log("Found EXACT non-1st degree match:", text)
-                  break
+                if (text === '· 1st' || text === '1st' || 
+                    text === '· 2nd' || text === '2nd' || 
+                    text === '· 3rd' || text === '3rd') {
+                  lastDegreeFound = text
+                  // DO NOT BREAK - keep iterating to find the LAST match
                 }
+              }
+              
+              // Use the last degree found (the visible one)
+              if (lastDegreeFound) {
+                isFirstDegreeConnection = (lastDegreeFound === '· 1st' || lastDegreeFound === '1st')
+                console.log("Last degree indicator found:", lastDegreeFound, "-> isFirstDegree:", isFirstDegreeConnection)
+              } else {
+                console.log("No degree indicator found in topcard")
               }
             } else {
               console.log("profileTopCardSection not found")
-              // Default to false if we can't find the topcard
-              isFirstDegreeConnection = false
             }
             
           } catch (error) {
