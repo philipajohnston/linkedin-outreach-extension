@@ -84,68 +84,42 @@ export class ProfileExtractor {
             }
           }
 
-          // Check connection status
-          // PRIMARY METHOD: Check for "Connect" button - if present, they are NOT 1st degree (definitive)
-          // This is the most reliable signal because LinkedIn always shows Connect for non-connections
+          // Check connection status by finding the degree indicator in profileTopCardSection
+          // The degree is shown as a short <p> element with EXACT text: "· 1st", "· 2nd", or "· 3rd"
           let isFirstDegreeConnection = false
 
           try {
             console.log("Checking for 1st degree connection status...")
 
-            // DEFINITIVE CHECK: Look for a Connect button on the page
-            // If there's a Connect button, the user is NOT a 1st degree connection
-            let hasConnectButton = false
-            const allButtons = document.querySelectorAll('button')
+            // Find the profileTopCardSection - the ONLY place to look for degree
+            const topcard = document.querySelector('[data-sdui-component*="profileTopCardSection"]')
             
-            for (const btn of allButtons) {
-              const btnText = (btn.textContent || '').trim().toLowerCase()
-              const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase()
+            if (topcard) {
+              // Get all <p> elements directly - degree indicator is always a <p>
+              const pElements = topcard.querySelectorAll('p')
               
-              // Check for Connect button (but not "Connected" or "Pending")
-              const isConnectButton = (
-                btnText === 'connect' ||
-                btnText.startsWith('connect ') ||
-                ariaLabel === 'connect' ||
-                ariaLabel.startsWith('connect ')
-              )
-              
-              const isNotConnectedOrPending = (
-                !btnText.includes('connected') &&
-                !btnText.includes('pending') &&
-                !ariaLabel.includes('connected') &&
-                !ariaLabel.includes('pending')
-              )
-              
-              if (isConnectButton && isNotConnectedOrPending) {
-                hasConnectButton = true
-                console.log("Found Connect button:", btnText || ariaLabel)
-                break
+              for (const p of pElements) {
+                const text = (p.textContent || '').trim()
+                
+                // EXACT match only - degree indicators are exactly these strings
+                if (text === '· 1st' || text === '1st') {
+                  isFirstDegreeConnection = true
+                  console.log("Found EXACT 1st degree match:", text)
+                  break
+                } else if (text === '· 2nd' || text === '2nd' || text === '· 3rd' || text === '3rd') {
+                  isFirstDegreeConnection = false
+                  console.log("Found EXACT non-1st degree match:", text)
+                  break
+                }
               }
-            }
-            
-            if (hasConnectButton) {
-              // Connect button exists = NOT a 1st degree connection
-              isFirstDegreeConnection = false
-              console.log("Connect button found - confirmed NOT 1st degree connection")
             } else {
-              // No Connect button - likely 1st degree, but verify with Message button
-              const hasMessageButton = Array.from(allButtons).some(btn => {
-                const text = (btn.textContent || '').trim().toLowerCase()
-                return text === 'message'
-              })
-              
-              if (hasMessageButton) {
-                isFirstDegreeConnection = true
-                console.log("No Connect button + Message button present - confirmed 1st degree connection")
-              } else {
-                // Neither button found - default to false (not connected)
-                isFirstDegreeConnection = false
-                console.log("Neither Connect nor Message button found - defaulting to NOT 1st degree")
-              }
+              console.log("profileTopCardSection not found")
+              // Default to false if we can't find the topcard
+              isFirstDegreeConnection = false
             }
             
           } catch (error) {
-            console.log("Error in connection degree detection (non-fatal):", error)
+            console.log("Error in connection degree detection:", error)
             isFirstDegreeConnection = false
           }
 
