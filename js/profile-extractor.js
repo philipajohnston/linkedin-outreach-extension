@@ -94,16 +94,20 @@ export class ProfileExtractor {
             // Strategy 1: Look for the degree badge right next to the name (current LinkedIn shows "Name · 1st" or "Name · 2nd")
             // The degree indicator appears as a small span near the h2 name element
             
-            // Find the topcard/name section
+            // Find the topcard/name section - can be section OR div with various componentkey patterns
             const topcardSection = document.querySelector(
-              'section[componentkey*="RvgTopcard"], section[componentkey*="Topcard"], [data-sdui-screen*="Profile"] section:first-of-type'
+              '[data-sdui-component*="profileTopCardSection"], ' +
+              '[componentkey*="RvgTopcard"], ' +
+              '[componentkey*="Topcard"], ' +
+              'section[componentkey*="Topcard"], ' +
+              '[data-sdui-screen*="Profile"] section:first-of-type'
             )
             
             if (topcardSection) {
               console.log("Found topcard section for connection degree detection")
               
               // LinkedIn SDUI uses <p> elements for the degree indicator (e.g., "· 2nd")
-              // Look for p, span, and div elements that contain the degree
+              // Look for p elements first (most reliable), then span and div
               const degreeElements = topcardSection.querySelectorAll('p, span, div')
               
               for (const el of degreeElements) {
@@ -126,6 +130,25 @@ export class ProfileExtractor {
                     console.log("Confirmed NOT 1st degree connection (found:", degree, ")")
                   }
                   break
+                }
+              }
+            }
+            
+            // Fallback: Search the entire main profile area for degree indicator
+            if (!topcardSection) {
+              console.log("Topcard not found, searching main profile area for degree...")
+              const mainProfile = document.querySelector('main[data-sdui-screen*="Profile"], [data-sdui-screen*="Profile"]')
+              if (mainProfile) {
+                const allParagraphs = mainProfile.querySelectorAll('p')
+                for (const p of allParagraphs) {
+                  const text = p.textContent?.trim() || ''
+                  const degreeMatch = text.match(/^·?\s*(1st|2nd|3rd)\s*$/)
+                  if (degreeMatch) {
+                    const degree = degreeMatch[1]
+                    console.log("Found degree indicator in main area:", text, "-> degree:", degree)
+                    isFirstDegreeConnection = (degree === '1st')
+                    break
+                  }
                 }
               }
             }
