@@ -25,44 +25,29 @@ export class ProfileExtractor {
           }
 
           // --- 1st degree connection ---
-          // Scope the search tightly to the topcard. A page-wide scan picks up
-          // "1st" from mutual connections, feed snippets, dates, etc.
+          // Page-wide scan for degree-badge leaves, with sidebar/nav exclusion.
+          // The profile's own badge always sits at the very top of the document
+          // (in the topcard); the right rail's "More profiles" badges sit lower.
+          // So: collect all visible candidates, filter sidebars, take topmost.
           let isFirstDegreeConnection = false
           let degreeMatch = null
+          const candidates = []
 
-          // Locate the topcard by walking up from the profile name h1.
-          // More reliable than componentkey/data-sdui-* selectors which churn
-          // between LinkedIn SDUI revisions.
-          const nameEl = document.querySelector("main h1") || document.querySelector("section h1")
-          let topcard = null
-          if (nameEl) {
-            topcard =
-              nameEl.closest('[componentkey*="Topcard"]') ||
-              nameEl.closest('[componentkey*="profileTopCard"]') ||
-              nameEl.closest("section")
-          }
-          topcard =
-            topcard ||
-            document.querySelector('[componentkey*="Topcard"]') ||
-            document.querySelector("main") ||
-            document.body
-
-          // Strategy 1: aria-label — most reliable when present.
-          // LinkedIn labels the degree badge like "...• 1st degree connection..."
-          for (const el of topcard.querySelectorAll("[aria-label]")) {
-            const aria = el.getAttribute("aria-label") || ""
-            const m = aria.match(/\b(1st|2nd|3rd)\s+degree\b/i)
-            if (m) { degreeMatch = m[1]; break }
+          for (const el of document.querySelectorAll("*")) {
+            // Allow up to 2 children — catches <span>1<sup>st</sup></span>
+            // without matching large containers.
+            if (el.children.length > 2) continue
+            const t = (el.textContent || "").trim().replace(/^[·•·]\s*/, "").trim()
+            if (!/^(1st|2nd|3rd)$/i.test(t)) continue
+            // Exclude sidebars, nav, related-profiles cards
+            if (el.closest("aside, nav, [role='complementary'], [role='navigation']")) continue
+            const r = el.getBoundingClientRect()
+            if (r.width === 0 || r.height === 0) continue // skip hidden duplicates
+            candidates.push({ text: t, y: r.top + window.scrollY })
           }
 
-          // Strategy 2: leaf-text scan for the visible "· 1st" badge.
-          if (!degreeMatch) {
-            for (const el of topcard.querySelectorAll("span, p")) {
-              if (el.children.length > 0) continue // leaves only
-              const t = (el.textContent || "").trim().replace(/^[·•·]\s*/, "").trim()
-              if (/^(1st|2nd|3rd)$/i.test(t)) { degreeMatch = t; break }
-            }
-          }
+          candidates.sort((a, b) => a.y - b.y)
+          if (candidates.length) degreeMatch = candidates[0].text
 
           if (degreeMatch) isFirstDegreeConnection = /1st/i.test(degreeMatch)
 
