@@ -1,30 +1,66 @@
-# froid-linkedin-2
+# LinkedIn Outreach Tracker
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+A Chrome extension for tracking LinkedIn cold outreach sequences with Google Sheets as the backend.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/philip-johnstons-projects/v0-froid-linkedin-2)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/VNcQY17P5o8)
+## What it does
 
-## Overview
+- Detects when you're on a LinkedIn profile page and shows a small indicator
+- Automatically captures the connection note you write when sending a connection request
+- Tracks outreach sequence steps: Warmup → Connect → Chatting → CTA → Interest → Converted
+- Auto-detects when a connection request is accepted (1st degree connection)
+- Syncs all data to a Google Sheet you own, one row per contact
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+## Setup
 
-## Deployment
+### 1. Google Cloud credentials
 
-Your project is live at:
+You need a Google Cloud project with the Sheets API enabled and an OAuth 2.0 client ID for a Chrome Extension.
 
-**[https://vercel.com/philip-johnstons-projects/v0-froid-linkedin-2](https://vercel.com/philip-johnstons-projects/v0-froid-linkedin-2)**
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Create a project (or use an existing one)
+3. Enable the **Google Sheets API**
+4. Create OAuth credentials: **OAuth client ID → Chrome Extension**
+5. Copy the client ID into `manifest.json` under `oauth2.client_id`
 
-## Build your app
+Detailed steps: see [oauth-setup-instructions.md](oauth-setup-instructions.md)
 
-Continue building your app on:
+### 2. Install the extension
 
-**[https://v0.dev/chat/projects/VNcQY17P5o8](https://v0.dev/chat/projects/VNcQY17P5o8)**
+1. Open Chrome → `chrome://extensions`
+2. Enable **Developer mode** (top right)
+3. Click **Load unpacked** → select this folder
+4. Pin the extension to your toolbar
 
-## How It Works
+### 3. Connect your Google Sheet
 
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+1. Create a new Google Sheet (blank)
+2. Click the extension icon on any LinkedIn profile page
+3. Paste the spreadsheet ID (from the sheet's URL) and click **Save**
+4. The extension will create the column headers automatically on first use
+
+## Usage
+
+Navigate to any LinkedIn profile. The extension popup shows the contact's current outreach status. Check off sequence steps as you complete them. Connection notes are captured automatically when you send a connection request with a note.
+
+## Project structure
+
+```
+manifest.json        Chrome extension manifest (MV3)
+content.js           Content script — runs on LinkedIn pages
+background.js        Service worker — handles OAuth token refresh
+popup.html/js        Extension popup UI
+js/
+  config.js          Column definitions and sequence steps
+  sheets-api.js      Google Sheets API v4 wrapper
+  auth-manager.js    OAuth flow via chrome.identity
+  contact-manager.js Contact read/write logic
+  ui-manager.js      Popup UI updates
+  utils.js           Shared helpers
+  profile-extractor.js  LinkedIn DOM scraping
+```
+
+## Notes
+
+- `manifest.json` is not committed with a real client ID — add yours locally before loading the extension
+- The extension uses `event.composedPath()` to detect send-button clicks inside LinkedIn's shadow DOM
+- Data is stored exclusively in your Google Sheet; nothing is sent to any third-party server
