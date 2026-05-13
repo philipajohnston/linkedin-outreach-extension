@@ -25,25 +25,46 @@ export class ProfileExtractor {
           }
 
           // --- 1st degree connection ---
-          // Search topcard first; fall back to whole page if not found.
-          // LinkedIn uses <span> (not <p>) for the degree badge in current SDUI.
+          // Scope the search tightly to the topcard. A page-wide scan picks up
+          // "1st" from mutual connections, feed snippets, dates, etc.
           let isFirstDegreeConnection = false
-          const searchRoot =
+          let degreeMatch = null
+
+          // Locate the topcard by walking up from the profile name h1.
+          // More reliable than componentkey/data-sdui-* selectors which churn
+          // between LinkedIn SDUI revisions.
+          const nameEl = document.querySelector("main h1") || document.querySelector("section h1")
+          let topcard = null
+          if (nameEl) {
+            topcard =
+              nameEl.closest('[componentkey*="Topcard"]') ||
+              nameEl.closest('[componentkey*="profileTopCard"]') ||
+              nameEl.closest("section")
+          }
+          topcard =
+            topcard ||
             document.querySelector('[componentkey*="Topcard"]') ||
-            document.querySelector('[componentkey*="profileTopCard"]') ||
-            document.querySelector('[data-sdui-component*="profileTopCardSection"]') ||
+            document.querySelector("main") ||
             document.body
 
-          let lastDegree = null
-          for (const el of searchRoot.querySelectorAll("*")) {
-            // Skip layout containers — degree badge is always a leaf/near-leaf element
-            if (el.children.length > 3) continue
-            const t = (el.textContent || "").trim()
-            // Match "· 1st", "1st", "· 2nd", etc. (· may be U+00B7 or regular middle dot)
-            if (/^[·•·]?\s*(1st|2nd|3rd)\s*$/i.test(t)) lastDegree = t
-            // Don't break — LinkedIn renders a hidden duplicate; last match is the visible one
+          // Strategy 1: aria-label — most reliable when present.
+          // LinkedIn labels the degree badge like "...• 1st degree connection..."
+          for (const el of topcard.querySelectorAll("[aria-label]")) {
+            const aria = el.getAttribute("aria-label") || ""
+            const m = aria.match(/\b(1st|2nd|3rd)\s+degree\b/i)
+            if (m) { degreeMatch = m[1]; break }
           }
-          if (lastDegree) isFirstDegreeConnection = /1st/i.test(lastDegree)
+
+          // Strategy 2: leaf-text scan for the visible "· 1st" badge.
+          if (!degreeMatch) {
+            for (const el of topcard.querySelectorAll("span, p")) {
+              if (el.children.length > 0) continue // leaves only
+              const t = (el.textContent || "").trim().replace(/^[·•·]\s*/, "").trim()
+              if (/^(1st|2nd|3rd)$/i.test(t)) { degreeMatch = t; break }
+            }
+          }
+
+          if (degreeMatch) isFirstDegreeConnection = /1st/i.test(degreeMatch)
 
           // --- Role & Company from current experience ---
           let role = ""
